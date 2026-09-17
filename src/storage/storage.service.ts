@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 @Injectable()
@@ -34,6 +34,29 @@ export class StorageService {
       new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
     );
     return `s3://${this.bucket}/${key}`;
+  }
+
+  /**
+   * B3: generic put for anything that isn't a permanent per-tenant
+   * document/media file — specifically the on-demand watermark cache,
+   * which deliberately lives under its own prefix (not the same tree as
+   * originals) so the cleanup cron can find and delete it without any
+   * risk of matching a real archive file.
+   */
+  async putRaw(key: string, body: Buffer, contentType: string) {
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+    );
+    return `s3://${this.bucket}/${key}`;
+  }
+
+  watermarkCacheKey(tenantId: string, contentItemId: string, researcherId: string, ext: string) {
+    return `tenants/${tenantId}/watermark-cache/${contentItemId}/${researcherId}-${Date.now()}${ext}`;
+  }
+
+  async deleteRaw(storagePath: string) {
+    const key = this.keyFromStoragePath(storagePath);
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   async download(storagePath: string): Promise<Buffer> {

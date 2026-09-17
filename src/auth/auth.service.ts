@@ -161,7 +161,13 @@ export class AuthService {
     const accessToken = this.signAccessToken(user, session.id);
 
     await this.tenantContext.run(
-      { tenantId: user.tenantId, userId: user.id, role: user.role, ipAddress: meta.ipAddress },
+      {
+        tenantId: user.tenantId,
+        userId: user.id,
+        role: user.role,
+        ipAddress: meta.ipAddress,
+        actorType: 'STAFF',
+      },
       () =>
         this.auditService.record({
           actionType: 'auth.two_factor_verified',
@@ -238,7 +244,13 @@ export class AuthService {
     const accessToken = this.signAccessToken(user, session.id);
 
     await this.tenantContext.run(
-      { tenantId: user.tenantId, userId: user.id, role: user.role, ipAddress: meta.ipAddress },
+      {
+        tenantId: user.tenantId,
+        userId: user.id,
+        role: user.role,
+        ipAddress: meta.ipAddress,
+        actorType: 'STAFF',
+      },
       () =>
         this.auditService.record({
           actionType: 'auth.login',

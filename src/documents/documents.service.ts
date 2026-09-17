@@ -44,7 +44,7 @@ export class DocumentsService {
         createdBy: ctx.userId,
         retentionExpiryDate: retention.retentionExpiryDate,
         appliedRetentionPolicy: retention.appliedRetentionPolicy,
-      },
+      } as any,
     });
 
     const storagePath = await this.storage.upload(
@@ -60,7 +60,7 @@ export class DocumentsService {
         contentItemId: contentItem.id,
         storagePath,
         ocrStatus: 'PENDING',
-      },
+      } as any,
     });
 
     await this.queue.add('process', {

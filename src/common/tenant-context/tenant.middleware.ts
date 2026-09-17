@@ -17,10 +17,16 @@ interface JwtPayload {
   tenantId: string;
   role: string;
   typ: 'access' | 'pending_2fa';
-  sid?: string; // ActiveSession id — only present on 'access' tokens
+  sid?: string; // ActiveSession id — only present on internal 'access' tokens
+  // B3: absent or 'internal' = staff token; 'researcher-portal' = external
+  // researcher token. These two audiences are mutually exclusive by path —
+  // a researcher-portal token is REJECTED on every internal route and vice
+  // versa, which is the actual isolation B3 asks for, not just a naming
+  // convention.
+  aud?: 'internal' | 'researcher-portal';
 }
 
-const PUBLIC_PATHS = ['/auth/login', '/health'];
+const PUBLIC_PATHS = ['/auth/login', '/health', '/researcher-portal/register', '/researcher-portal/login'];
 
 // Routes a 'pending_2fa' token is allowed to hit — nothing else. This is
 // the actual enforcement of A1's "بدون تخطٍ": there is no server-side path
@@ -39,6 +45,9 @@ const PENDING_2FA_ALLOWED_PATHS = ['/auth/2fa/setup', '/auth/2fa/verify'];
  * Phase 2 additions: also the ONE place that enforces "2FA verified" (A1)
  * and "session not revoked" (A12) — both are request-lifecycle concerns,
  * not per-endpoint ones, for the same "can't be forgotten" reasoning.
+ *
+ * Phase 4 addition: also the ONE place that enforces the researcher-portal
+ * / internal audience split (B3).
  */
 @Injectable()
 export class TenantMiddleware implements NestMiddleware {
@@ -49,7 +58,12 @@ export class TenantMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: AuthedRequest, res: Response, next: NextFunction) {
-    if (PUBLIC_PATHS.some((p) => req.path.startsWith(p))) {
+    // NestJS attaches route-bound middleware inside each controller's own
+    // Express sub-router, so req.path/req.url are relative to that
+    // controller's mount point (e.g. "/" instead of "/auth/login") — only
+    // req.originalUrl stays absolute regardless of that internal nesting.
+    const path = req.originalUrl.split('?')[0];
+    if (PUBLIC_PATHS.some((p) => path.startsWith(p))) {
       return next();
     }
 
@@ -65,8 +79,39 @@ export class TenantMiddleware implements NestMiddleware {
       throw new UnauthorizedException('Invalid or expired token');
     }
 
+    const isResearcherRoute = path.startsWith('/researcher-portal');
+    const isResearcherToken = payload.aud === 'researcher-portal';
+
+    if (isResearcherRoute !== isResearcherToken) {
+      // Either a researcher token hitting an internal route, or an
+      // internal token hitting the researcher portal — both rejected
+      // identically so neither side can even distinguish "wrong audience"
+      // from "wrong route" by the error shape.
+      throw new UnauthorizedException('Token is not valid for this portal');
+    }
+
+    if (isResearcherToken) {
+      // Researcher-portal tokens skip 2FA-pending and internal
+      // session-revocation checks entirely — those are internal-staff
+      // concerns (ActiveSession's FK is to `User`, not `ResearcherAccount`).
+      // A parallel researcher-session model is a reasonable follow-up if
+      // remote-logout for researchers becomes a requirement; out of scope
+      // for this pass.
+      req.user = { userId: payload.sub, tenantId: payload.tenantId, role: 'EXTERNAL_RESEARCHER' };
+      return this.tenantContext.run(
+        {
+          tenantId: payload.tenantId,
+          userId: payload.sub,
+          role: 'EXTERNAL_RESEARCHER',
+          ipAddress: req.ip,
+          actorType: 'RESEARCHER',
+        },
+        () => next(),
+      );
+    }
+
     if (payload.typ === 'pending_2fa') {
-      if (!PENDING_2FA_ALLOWED_PATHS.some((p) => req.path.startsWith(p))) {
+      if (!PENDING_2FA_ALLOWED_PATHS.some((p) => path.startsWith(p))) {
         throw new UnauthorizedException('Two-factor verification required');
       }
     } else {
@@ -107,6 +152,7 @@ export class TenantMiddleware implements NestMiddleware {
         userId: payload.sub,
         role: payload.role,
         ipAddress: req.ip,
+        actorType: 'STAFF',
       },
       () => next(),
     );

@@ -20,6 +20,8 @@ import { StorageModule } from './storage/storage.module';
 import { DocumentsModule } from './documents/documents.module';
 import { RetentionModule } from './retention/retention.module';
 import { SharingModule } from './sharing/sharing.module';
+import { MediaModule } from './media/media.module';
+import { ResearcherPortalModule } from './researcher-portal/researcher-portal.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -54,6 +56,8 @@ import { HealthController } from './health.controller';
     DocumentsModule,
     RetentionModule,
     SharingModule,
+    MediaModule,
+    ResearcherPortalModule,
   ],
 })
 export class AppModule implements NestModule {

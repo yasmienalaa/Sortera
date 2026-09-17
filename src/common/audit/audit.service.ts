@@ -44,12 +44,13 @@ export class AuditService {
       await this.prisma.scoped.auditLog.create({
         data: {
           userId: ctx.userId,
+          actorType: ctx.actorType,
           actionType: entry.actionType,
           resourceType: entry.resourceType,
           resourceId: entry.resourceId,
           ipAddress: ctx.ipAddress,
           metadata: entry.metadata ?? {},
-        },
+        } as any,
       });
     } catch (err) {
       this.logger.error(

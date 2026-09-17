@@ -6,6 +6,7 @@ export interface RequestContext {
   userId: string;
   role: string;
   ipAddress?: string;
+  actorType: 'STAFF' | 'RESEARCHER' | 'SYSTEM';
 }
 
 /**

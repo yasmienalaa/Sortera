@@ -1,7 +1,8 @@
 // ============================================================================
 // HBJ Archive — Phase 1 (Foundation) + Phase 2 (القسم أ + B1/B2/B4)
 //                + Phase 3 (C2 مستندات، C3 احتفاظ، C4 مشاركة بين العملاء)
-// Still pending: access_requests / بوابة الباحث الخارجي (Phase 4).
+//                + Phase 4 (B3 بوابة الباحث الخارجي)
+// All phases complete per the spec's "مراحل التنفيذ المقترحة".
 // ============================================================================
 
 generator client {
@@ -74,7 +75,6 @@ model User {
 
   tenant       Tenant        @relation(fields: [tenantId], references: [id])
   contentItems ContentItem[] @relation("ContentItemCreatedBy")
-  auditLogs    AuditLog[]
   activeSessions ActiveSession[]
   tasksAssigned  Task[]
 
@@ -174,6 +174,8 @@ model ContentItem {
   relationsAsTarget ContentRelation[] @relation("RelationTarget")
   documentFile      DocumentFile?
   sharedWith        SharedResource[]
+  mediaFile         MediaFile?
+  accessRequests    AccessRequest[]
 
   // B1: full-text search. Prisma can't express the trigger that keeps
   // this in sync (see prisma/sql/fulltext_search.sql) — the column here
@@ -203,18 +205,28 @@ model ContentItem {
 // silently deviating from the appendix. Happy to drop it if you'd rather
 // derive tenant scope purely from the joined user instead.
 // -----------------------------------------------------------------------
-model AuditLog {
-  id           String   @id @default(uuid())
-  tenantId     String   @map("tenant_id") // <-- added, see note above
-  userId       String?  @map("user_id") // nullable: failed logins may have no resolved user yet
-  actionType   String   @map("action_type") // e.g. "content_item.view", "content_item.download", "auth.login_failed"
-  resourceType String   @map("resource_type") // e.g. "content_item", "user", "auth"
-  resourceId   String?  @map("resource_id")
-  timestamp    DateTime @default(now())
-  ipAddress    String?  @map("ip_address")
-  metadata     Json     @default("{}")
+// The actor behind an audit entry isn't always a `User` row — an external
+// researcher (`ResearcherAccount`, a wholly separate table per Phase 4) or
+// a cron job/worker can trigger one too. actorType records which kind so
+// userId can stay a plain identifier without an FK forcing every actor to
+// exist in `users`.
+enum AuditActorType {
+  STAFF
+  RESEARCHER
+  SYSTEM
+}
 
-  user User? @relation(fields: [userId], references: [id])
+model AuditLog {
+  id           String         @id @default(uuid())
+  tenantId     String         @map("tenant_id") // <-- added, see note above
+  userId       String?        @map("user_id") // nullable: failed logins may have no resolved user yet
+  actorType    AuditActorType @default(STAFF) @map("actor_type")
+  actionType   String         @map("action_type") // e.g. "content_item.view", "content_item.download", "auth.login_failed"
+  resourceType String         @map("resource_type") // e.g. "content_item", "user", "auth"
+  resourceId   String?        @map("resource_id")
+  timestamp    DateTime       @default(now())
+  ipAddress    String?        @map("ip_address")
+  metadata     Json           @default("{}")
 
   @@index([tenantId])
   @@index([tenantId, resourceType, resourceId])
@@ -537,4 +549,109 @@ model SharedResource {
   @@index([tenantId])
   @@index([contentItemId])
   @@map("shared_resources")
+}
+
+// ============================================================================
+// PHASE 4 — B3 (بوابة الباحث الخارجي / Viewer Experience)
+// Same tenant_id convention as Phase 1/2/3 — flagged once here.
+// ============================================================================
+
+// Storage for the ORIGINAL video/image file behind a content_item. Not in
+// the spec's appendix (videos/photos already exist in the live system with
+// its own pre-existing storage the spec doesn't describe) — added here as
+// the minimum needed to make the watermark-on-download flow (below) work
+// against a concrete file rather than an assumption. Mirrors DocumentFile's
+// shape for consistency.
+model MediaFile {
+  id            String   @id @default(uuid())
+  tenantId      String   @map("tenant_id")
+  contentItemId String   @unique @map("content_item_id")
+  storagePath   String   @map("storage_path")
+  mimeType      String   @map("mime_type")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([tenantId])
+  @@map("media_files")
+}
+
+// A completely separate identity from `User` — this is the whole point of
+// B3's "بمفتاح/scope مختلف تمامًا... لعزل النظام الداخلي في حال اختراق بوابة
+// الباحثين". An external researcher account can NEVER authenticate against
+// any internal endpoint, and vice versa (enforced by the `aud` JWT claim in
+// TenantMiddleware, not by convention). Do not confuse this with the
+// internal `Role.RESEARCHER` — that's a staff member's role inside the main
+// system; this is an outside party (journalist, academic) using a
+// deliberately isolated portal.
+model ResearcherAccount {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id")
+  email        String
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  accessRequests AccessRequest[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("researcher_accounts")
+}
+
+enum AccessRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// "أي طلب وصول يمر عبر هذا الجدول قبل أن يُرجع الـ API أي بيانات فعلية" —
+// ResearcherPortalService checks this table on every view/download, not
+// just at request-creation time.
+model AccessRequest {
+  id         String              @id @default(uuid())
+  tenantId   String              @map("tenant_id")
+  researcherId String            @map("researcher_id")
+  resourceId String              @map("resource_id") // content_item id
+  status     AccessRequestStatus @default(PENDING)
+  approvedBy String?             @map("approved_by") // internal User id
+  expiryDate DateTime?           @map("expiry_date") // set only once approved
+  createdAt  DateTime            @default(now()) @map("created_at")
+  decidedAt  DateTime?           @map("decided_at")
+
+  researcher  ResearcherAccount @relation(fields: [researcherId], references: [id])
+  contentItem ContentItem       @relation(fields: [resourceId], references: [id])
+
+  @@unique([researcherId, resourceId])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("access_requests")
+}
+
+enum WatermarkStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// "الـ Watermark: on-demand وقت التحميل... يُحذف الملف الناتج بعد فترة
+// قصيرة من الكاش." This table is how the cleanup cron finds what to
+// delete — the watermarked file itself lives in S3 under a cache prefix,
+// never in the permanent per-tenant document/media path.
+model WatermarkJob {
+  id            String          @id @default(uuid())
+  tenantId      String          @map("tenant_id")
+  contentItemId String          @map("content_item_id")
+  researcherId  String          @map("researcher_id")
+  status        WatermarkStatus @default(PENDING)
+  storagePath   String?         @map("storage_path") // set once DONE
+  error         String?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  expiresAt     DateTime        @map("expires_at") // cleanup cron deletes at/after this
+
+  @@index([tenantId])
+  @@index([expiresAt])
+  @@map("watermark_jobs")
 }

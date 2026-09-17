@@ -15,6 +15,6 @@ export class EventTypesService {
   }
 
   create(dto: CreateEventTypeDto) {
-    return this.prisma.scoped.eventType.create({ data: dto });
+    return this.prisma.scoped.eventType.create({ data: dto as any });
   }
 }

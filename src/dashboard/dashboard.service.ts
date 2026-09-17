@@ -43,7 +43,7 @@ export class DashboardService {
     for (const tenant of tenants) {
       try {
         await this.tenantContext.run(
-          { tenantId: tenant.id, userId: 'system-cron', role: 'SUPER_ADMIN' },
+          { tenantId: tenant.id, userId: 'system-cron', role: 'SUPER_ADMIN', actorType: 'SYSTEM' },
           () => this.computeForTenant(tenant.id),
         );
       } catch (err) {
@@ -80,7 +80,7 @@ export class DashboardService {
         storageUsedBytes: 0n,
         recentAdditions,
         restrictedAlerts,
-      },
+      } as any,
     });
   }
 }

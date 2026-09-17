@@ -15,7 +15,7 @@ export class TasksService {
 
   create(dto: CreateTaskDto) {
     return this.prisma.scoped.task.create({
-      data: { ...dto, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined },
+      data: { ...dto, dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined } as any,
     });
   }
 

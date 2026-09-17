@@ -209,3 +209,71 @@ docker compose up -d   # بقى فيه MinIO كمان (S3 محلي) على :9000
 2. **على Railway:** ملف `nixpacks.toml` في جذر الريبو بيطلب من Railway يثبّت `poppler_utils` تلقائيًا وقت الـ build — مفيش خطوة يدوية إضافية مطلوبة منك هناك.
 
 باقي المكتبات (`pdf-parse`, `mammoth`, `tesseract.js`) JS/WASM خالص، من غير أي اعتماد native، فمفروض متسببش نفس المشكلة.
+
+---
+
+## المرحلة 4 — B3 (بوابة الباحث الخارجي)
+
+### أهم قرار معماري: عزل حقيقي، مش بس تسمية
+
+الملف بيقول "لعزل النظام الداخلي في حال اختراق بوابة الباحثين" — نفّذته بإضافة claim اسمه `aud` (audience) في الـ JWT. توكن الباحث الخارجي (`aud: "researcher-portal"`) **مرفوض تمامًا** على أي route داخلي، وتوكن الموظف الداخلي **مرفوض تمامًا** على أي route تحت `/researcher-portal/*` — الفحص ده في `TenantMiddleware` نفسه (مكان واحد، زي باقي القواعد الإجبارية في المشروع)، مش مجرد اتفاق أو تسمية مختلفة للـ endpoints.
+
+كمان **حساب الباحث الخارجي (`ResearcherAccount`) منفصل تمامًا عن جدول `users`** — حتى لو باحث داخلي (Role.RESEARCHER، موظف عندكم) وباحث خارجي (صحفي/أكاديمي محتاج وصول) بينهم تشابه بالاسم بس، هما كيانين مختلفين تمامًا في النظام.
+
+### اللي اتبنى
+
+| البند | إزاي |
+|---|---|
+| **تسجيل + لوجين الباحث** | `POST /researcher-portal/register` و`/login` — منفصلين تمامًا عن `/auth/*` الداخلي. |
+| **تصفح مجاني** | `GET /researcher-portal/content-items` — بس المحتوى `PUBLIC` + `PUBLISHED`، بدون أي طلب وصول. |
+| **طلب وصول** | `POST /researcher-portal/access-requests` → `access_requests` بحالة `PENDING`. |
+| **مراجعة الطلبات (داخلي)** | `GET/PATCH /access-requests/*` — للموظفين بس (`RolesGuard`)، الموافقة بتحدد `expiry_date` (افتراضي 30 يوم). |
+| **عرض محدود** | `GET /researcher-portal/content-items/:id` — بيتحقق من `access_requests` **في كل مرة**، مش وقت الطلب بس. |
+| **تحميل بعلامة مائية on-demand** | `POST /researcher-portal/content-items/:id/download` → BullMQ job → `ffmpeg` (نفس نمط `pdftoppm` — أداة نظام واحدة، مش مكتبة native) بيحط اسم الباحث + التاريخ على الفيديو/الصورة وقت الطلب فعليًا، مش مسبقًا. الملف الناتج بيتخزن في مسار cache منفصل تمامًا عن الأرشيف الأصلي، وبيتمسح تلقائيًا بعد 30 دقيقة (`WatermarkCleanupService`، cron كل 10 دقايق). |
+
+### إضافتين محتاجين مراجعتك
+
+1. **`media_files`** جدول جديد مش في الملحق — لأن الملحق مركّز على التحسينات، وتخزين الفيديو/الصور الأصلية في النظام الحالي غير موصوف فيه أصلاً (موجود بالفعل في الإنتاج بطريقته الخاصة). أضفته كحد أدنى عشان فلو الـ watermark يكون له ملف حقيقي يشتغل عليه. لو النظام الحالي عنده جدول تخزين فيديو موجود بالفعل، الأفضل نربط عليه بدل `media_files` الجديد — قوليلي التفاصيل لو متاحة.
+2. **رفع الفيديو الأصلي حاليًا بيعدي بالكامل في الـ memory** (multer memoryStorage، حد أقصى 500MB) — مقبول للتجربة، لكن production حقيقي لفيديوهات كبيرة محتاج streaming لـ S3 مباشرة بدل التحميل الكامل في الـ RAM الأول. فلقتها كـ follow-up تقني، مش حليتها دلوقتي.
+
+### إعداد إضافي لازم للمرحلة 4
+
+```bash
+# محليًا (Kali/Debian):
+sudo apt install -y ffmpeg
+
+# Railway: nixpacks.toml بقى فيه ffmpeg جنب poppler_utils، تلقائي بدون خطوة يدوية.
+```
+
+### تجربة الفلو كامل
+
+```bash
+# 1) تسجيل باحث خارجي (على أرشيف tenant معين، عن طريق الـ slug)
+curl -X POST localhost:3000/researcher-portal/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"researcher@example.com","password":"Password123!","fullName":"باحث","tenantSlug":"hbj-archive"}'
+# → {"accessToken":"...", "researcher": {...}}
+
+# 2) تصفح المحتوى العام (بدون طلب وصول)
+curl localhost:3000/researcher-portal/content-items -H "Authorization: Bearer <RESEARCHER_TOKEN>"
+
+# 3) طلب وصول لعنصر مقيّد
+curl -X POST localhost:3000/researcher-portal/access-requests \
+  -H "Authorization: Bearer <RESEARCHER_TOKEN>" -H "Content-Type: application/json" \
+  -d '{"resourceId":"<CONTENT_ITEM_ID>"}'
+
+# 4) (بحساب موظف داخلي بدور ADMIN) الموافقة
+curl -X PATCH localhost:3000/access-requests/<REQUEST_ID>/approve -H "Authorization: Bearer <STAFF_TOKEN>"
+
+# 5) تحميل بعلامة مائية
+curl -X POST localhost:3000/researcher-portal/content-items/<ID>/download -H "Authorization: Bearer <RESEARCHER_TOKEN>"
+# → {"watermarkJobId":"...", "status":"PENDING"}
+curl localhost:3000/researcher-portal/watermark-jobs/<JOB_ID> -H "Authorization: Bearer <RESEARCHER_TOKEN>"
+# → لو DONE: {"status":"DONE","downloadUrl":"https://... (صالح 5 دقايق)"}
+```
+
+---
+
+## كل المراحل الأربعة خلصت
+
+المتبقي الوحيد هو الشاشات (frontend) — مستنية صور الشاشات الحالية عشان تتبنى بنفس الهوية البصرية، والتجربة الشاملة اللي اتفقنا نعملها في الآخر.

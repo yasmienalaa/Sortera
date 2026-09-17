@@ -18,7 +18,7 @@ export class RetentionPoliciesService {
     if (existing) {
       return this.prisma.scoped.retentionPolicy.update({ where: { id: existing.id }, data: dto });
     }
-    return this.prisma.scoped.retentionPolicy.create({ data: dto });
+    return this.prisma.scoped.retentionPolicy.create({ data: dto as any });
   }
 
   /**

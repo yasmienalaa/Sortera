@@ -16,7 +16,7 @@ export class SavedSearchesService {
   create(dto: CreateSavedSearchDto) {
     const ctx = this.tenantContext.get()!;
     return this.prisma.scoped.savedSearch.create({
-      data: { userId: ctx.userId, name: dto.name, queryParams: dto.queryParams },
+      data: { userId: ctx.userId, name: dto.name, queryParams: dto.queryParams } as any,
     });
   }
 

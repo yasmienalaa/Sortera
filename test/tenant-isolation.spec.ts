@@ -43,8 +43,8 @@ describe('Tenant isolation (Prisma extension)', () => {
 
   it("tenant A's scoped query never returns tenant B's rows", async () => {
     const resultsAsTenantA = await tenantContext.run(
-      { tenantId: tenantAId, userId: 'irrelevant', role: 'OWNER' },
-      () => prisma.scoped.contentItem.findMany({}),
+      { tenantId: tenantAId, userId: 'irrelevant', role: 'OWNER', actorType: 'STAFF' },
+      async () => prisma.scoped.contentItem.findMany({}),
     );
 
     expect(resultsAsTenantA.length).toBeGreaterThan(0);
@@ -53,8 +53,8 @@ describe('Tenant isolation (Prisma extension)', () => {
 
   it("switching context to tenant B returns only tenant B's rows", async () => {
     const resultsAsTenantB = await tenantContext.run(
-      { tenantId: tenantBId, userId: 'irrelevant', role: 'ADMIN' },
-      () => prisma.scoped.contentItem.findMany({}),
+      { tenantId: tenantBId, userId: 'irrelevant', role: 'ADMIN', actorType: 'STAFF' },
+      async () => prisma.scoped.contentItem.findMany({}),
     );
 
     expect(resultsAsTenantB.length).toBeGreaterThan(0);
@@ -67,14 +67,14 @@ describe('Tenant isolation (Prisma extension)', () => {
     });
 
     const created = await tenantContext.run(
-      { tenantId: tenantAId, userId: someUserInTenantA.id, role: 'OWNER' },
-      () =>
+      { tenantId: tenantAId, userId: someUserInTenantA.id, role: 'OWNER', actorType: 'STAFF' },
+      async () =>
         prisma.scoped.contentItem.create({
           data: {
             contentType: 'IMAGE',
             title: 'test isolation item',
             createdBy: someUserInTenantA.id,
-          },
+          } as any,
         }),
     );
     expect(created.tenantId).toBe(tenantAId);
@@ -82,7 +82,7 @@ describe('Tenant isolation (Prisma extension)', () => {
 
   it('audit_logs is append-only: update() and delete() are rejected even for a SuperAdmin-role context', async () => {
     await tenantContext.run(
-      { tenantId: tenantAId, userId: 'irrelevant', role: 'SUPER_ADMIN' },
+      { tenantId: tenantAId, userId: 'irrelevant', role: 'SUPER_ADMIN', actorType: 'STAFF' },
       async () => {
         const anyLog = await prisma.scoped.auditLog.findFirst({});
         if (!anyLog) return; // nothing logged yet in this environment, skip

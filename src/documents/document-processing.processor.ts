@@ -53,7 +53,7 @@ export class DocumentProcessor implements OnModuleInit, OnModuleDestroy {
 
   private async process(job: DocumentProcessingJob) {
     return this.tenantContext.run(
-      { tenantId: job.tenantId, userId: 'system-worker', role: 'SUPER_ADMIN' },
+      { tenantId: job.tenantId, userId: 'system-worker', role: 'SUPER_ADMIN', actorType: 'SYSTEM' },
       async () => {
         await this.prisma.scoped.documentFile.update({
           where: { contentItemId: job.contentItemId },

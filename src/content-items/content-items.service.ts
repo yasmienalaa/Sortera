@@ -55,7 +55,7 @@ export class ContentItemsService {
         createdBy: ctx.userId,
         retentionExpiryDate: retention.retentionExpiryDate,
         appliedRetentionPolicy: retention.appliedRetentionPolicy,
-      },
+      } as any,
     });
   }
 
@@ -90,7 +90,7 @@ export class ContentItemsService {
         snapshot: item as any,
         versionNumber: nextVersion,
         changedBy: ctx.userId,
-      },
+      } as any,
     });
 
     await this.prisma.scoped.statusTransition.create({
@@ -99,7 +99,7 @@ export class ContentItemsService {
         fromStatus: item.lifecycleStatus,
         toStatus,
         changedBy: ctx.userId,
-      },
+      } as any,
     });
 
     return this.prisma.scoped.contentItem.update({

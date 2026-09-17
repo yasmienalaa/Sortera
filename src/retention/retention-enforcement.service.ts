@@ -23,7 +23,7 @@ export class RetentionEnforcementService {
     const tenants = await this.prisma.tenant.findMany({ where: { isActive: true } });
     for (const tenant of tenants) {
       await this.tenantContext.run(
-        { tenantId: tenant.id, userId: 'system-retention-cron', role: 'SUPER_ADMIN' },
+        { tenantId: tenant.id, userId: 'system-retention-cron', role: 'SUPER_ADMIN', actorType: 'SYSTEM' },
         () => this.enforceForTenant(),
       );
     }
