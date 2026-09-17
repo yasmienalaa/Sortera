@@ -194,6 +194,18 @@ docker compose up -d   # بقى فيه MinIO كمان (S3 محلي) على :9000
 
 اعملي الـ bucket مرة واحدة يدويًا من MinIO console (`http://localhost:9001`, admin/minioadmin) باسم `hbj-archive-documents` (أو أي اسم، بس يطابق `S3_BUCKET` في `.env`).
 
-### ملاحظة صراحة: كود لسه محتاج smoke-test فعلي
+### ملاحظة صراحة: اتصلّحت مشكلة اعتماد native حقيقية
 
-جزء الـ OCR (`document-processing.processor.ts`) اتكتب من غير تثبيت فعلي للمكتبات (مفيش إنترنت في بيئة الكتابة)، وتحديدًا استدعاء `pdf-img-convert` — الـ API بتاعها اتغيّر بين الإصدارات. أول حاجة تتأكدي منها لما تشغّلي الـ worker محليًا هي إن استدعاء `pdfImgConvert.convert(buffer)` بيرجع فعلاً array من الصور زي المتوقع. باقي الكود (pdf-parse, mammoth, tesseract.js الأساسي) أنماط استخدام مستقرة وموثقة كويس.
+أول نسخة من الـ OCR fallback كانت بتستخدم `pdf-img-convert`، اللي بيسحب مكتبة `canvas` (اعتماد native محتاج cairo/pixman/pango على مستوى النظام) — ده فشل فعليًا عند أول `npm install` على جهاز حقيقي (Kali)، وكان هيفشل بنفس الطريقة على Railway. اتصلحت باستخدام **`pdftoppm`** (جزء من حزمة نظام واحدة بسيطة اسمها `poppler-utils`) بدل ما نعتمد على شجرة رسومية كاملة — أخف بكتير وأسهل تثبيت في أي بيئة.
+
+**لازم تتأكدي من الحاجتين دول:**
+
+1. **محليًا (لينكس/Kali):**
+   ```bash
+   sudo apt install -y poppler-utils
+   ```
+   (على Mac: `brew install poppler`)
+
+2. **على Railway:** ملف `nixpacks.toml` في جذر الريبو بيطلب من Railway يثبّت `poppler_utils` تلقائيًا وقت الـ build — مفيش خطوة يدوية إضافية مطلوبة منك هناك.
+
+باقي المكتبات (`pdf-parse`, `mammoth`, `tesseract.js`) JS/WASM خالص، من غير أي اعتماد native، فمفروض متسببش نفس المشكلة.

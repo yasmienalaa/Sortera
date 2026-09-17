@@ -2,18 +2,18 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { Worker } from 'bullmq';
 import * as pdfParse from 'pdf-parse';
 import * as mammoth from 'mammoth';
-// NOTE: verify this default-export shape against the installed version —
-// pdf-img-convert's API has shifted between versions. Written against the
-// commonly-documented `convert(buffer) => Promise<Uint8Array[]>` shape;
-// this file was authored without a live install to test against (no
-// network in the authoring sandbox), so treat this one call site as the
-// thing to smoke-test first when you bring the worker up locally.
-import * as pdfImgConvert from 'pdf-img-convert';
 import { createWorker } from 'tesseract.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant-context/tenant-context.service';
 import { StorageService } from '../storage/storage.service';
 import { DOCUMENT_PROCESSING_QUEUE, DocumentProcessingJob, redisConnection } from './document-processing.queue';
+
+const execFileAsync = promisify(execFile);
 
 // Below this many characters of extracted "real" text, we assume the PDF
 // is a scanned image (no embedded text layer) and fall back to OCR,
@@ -100,18 +100,57 @@ export class DocumentProcessor implements OnModuleInit, OnModuleDestroy {
     }
 
     // C2: "لو صفحات ممسوحة ضوئيًا (صور) → تمريرها على محرك OCR (Tesseract)."
-    this.logger.log('PDF has no usable text layer — falling back to OCR');
-    const pageImages = (await (pdfImgConvert as any).convert(buffer)) as Uint8Array[];
-    const ocrWorker = await createWorker('ara+eng');
+    this.logger.log('PDF has no usable text layer — falling back to OCR via pdftoppm + tesseract.js');
+    return this.ocrScannedPdf(buffer);
+  }
+
+  /**
+   * Renders each PDF page to a PNG using `pdftoppm` (part of the
+   * `poppler-utils` system package — apt/apk install, one line, no
+   * compiling) and OCRs each page with tesseract.js. Requires
+   * `pdftoppm` to be on PATH; if it's missing, this throws a clear error
+   * that becomes the DocumentFile.ocrError message rather than the
+   * upload silently sitting at PENDING forever.
+   */
+  private async ocrScannedPdf(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'hbj-ocr-'));
+    const inputPath = path.join(tmpDir, 'input.pdf');
+    const outputPrefix = path.join(tmpDir, 'page');
+
     try {
-      const pageTexts: string[] = [];
-      for (const pageImage of pageImages) {
-        const { data } = await ocrWorker.recognize(Buffer.from(pageImage));
-        pageTexts.push(data.text);
+      await fs.writeFile(inputPath, buffer);
+
+      try {
+        await execFileAsync('pdftoppm', ['-png', '-r', '200', inputPath, outputPrefix]);
+      } catch (err) {
+        throw new Error(
+          "OCR fallback requires the 'poppler-utils' system package (provides pdftoppm) — " +
+            `install it (e.g. \`apt-get install poppler-utils\`) and retry. Original error: ${(err as Error).message}`,
+        );
       }
-      return { text: pageTexts.join('\n\n'), pageCount: pageImages.length };
+
+      const pageFiles = (await fs.readdir(tmpDir))
+        .filter((f) => f.startsWith('page') && f.endsWith('.png'))
+        .sort(); // pdftoppm zero-pads page numbers, so lexical sort == page order
+
+      if (pageFiles.length === 0) {
+        throw new Error('pdftoppm produced no page images — the PDF may be corrupt or password-protected.');
+      }
+
+      const ocrWorker = await createWorker('ara+eng');
+      try {
+        const pageTexts: string[] = [];
+        for (const fileName of pageFiles) {
+          const imageBuffer = await fs.readFile(path.join(tmpDir, fileName));
+          const { data } = await ocrWorker.recognize(imageBuffer);
+          pageTexts.push(data.text);
+        }
+        return { text: pageTexts.join('\n\n'), pageCount: pageFiles.length };
+      } finally {
+        await ocrWorker.terminate();
+      }
     } finally {
-      await ocrWorker.terminate();
+      await fs.rm(tmpDir, { recursive: true, force: true });
     }
   }
 
