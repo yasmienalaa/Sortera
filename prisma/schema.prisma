@@ -1,0 +1,540 @@
+// ============================================================================
+// HBJ Archive — Phase 1 (Foundation) + Phase 2 (القسم أ + B1/B2/B4)
+//                + Phase 3 (C2 مستندات، C3 احتفاظ، C4 مشاركة بين العملاء)
+// Still pending: access_requests / بوابة الباحث الخارجي (Phase 4).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------
+// Tenant — every other main table hangs off this.
+// -----------------------------------------------------------------------
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+
+  // A1: "تحقق ثنائي إلزامي بدون تخطٍ لكل الأدوار الإدارية" — configurable
+  // per tenant rather than hardcoded, since a government tenant might want
+  // it enforced for RESEARCHER too, for example.
+  enforceTwoFactorForRoles Role[] @default([OWNER, SUPER_ADMIN, ADMIN, MEDIA_ADMIN]) @map("enforce_two_factor_for_roles")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users         User[]
+  contentItems  ContentItem[]
+  navSections   NavSection[]
+  eventTypes    EventType[]
+
+  @@map("tenants")
+}
+
+// -----------------------------------------------------------------------
+// Roles — RBAC layer. The Policy layer (see PolicyService) sits ON TOP
+// of this and can still reject a request even for ADMIN/SUPER_ADMIN,
+// e.g. when confidentialityLevel = RESTRICTED and the user isn't cleared.
+// -----------------------------------------------------------------------
+enum Role {
+  OWNER
+  SUPER_ADMIN
+  ADMIN
+  MEDIA_ADMIN
+  RESEARCHER
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  email     String
+  passwordHash String @map("password_hash")
+  fullName  String   @map("full_name")
+  role      Role     @default(MEDIA_ADMIN)
+
+  // Placeholder for A1 (Phase 2) — kept here because it hangs off the user
+  // record, but the enforcement middleware itself is Phase 2 work.
+  twoFactorEnforced Boolean @default(false) @map("two_factor_enforced")
+
+  // A1 (Phase 2, now implemented): TOTP secret is null until the user
+  // completes enrollment via POST /auth/2fa/setup. twoFactorEnabled only
+  // flips true once they've verified a code against it once — otherwise a
+  // user could get locked out by a secret they never actually confirmed.
+  twoFactorSecret  String? @map("two_factor_secret")
+  twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  contentItems ContentItem[] @relation("ContentItemCreatedBy")
+  auditLogs    AuditLog[]
+  activeSessions ActiveSession[]
+  tasksAssigned  Task[]
+
+  // Same email may legitimately exist in two different tenants (two
+  // different customers), so uniqueness is scoped per-tenant, not global.
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// -----------------------------------------------------------------------
+// content_items — the unified polymorphic table (spec section C1).
+// Exact fields per the "ملحق: ملخص الجداول" appendix, plus tenantId
+// (mandatory per instruction, and per C4: "tenant_id هو أهم عمود في
+// النظام كله").
+// -----------------------------------------------------------------------
+enum ContentType {
+  VIDEO
+  IMAGE
+  DOCUMENT
+  AUDIO
+}
+
+// Generic lifecycle/administrative status (separate from lifecycleStatus,
+// which models the editorial pipeline from A6).
+enum ContentStatus {
+  ACTIVE
+  PENDING_REVIEW
+  ARCHIVED
+  DELETED
+}
+
+// A6: راخام → قيد الإنتاج → جاهز للمراجعة → منشور → مؤرشف
+enum LifecycleStatus {
+  RAW
+  IN_PRODUCTION
+  READY_FOR_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ConfidentialityLevel {
+  PUBLIC
+  INTERNAL
+  CONFIDENTIAL
+  RESTRICTED
+}
+
+model ContentItem {
+  id                   String               @id @default(uuid())
+  tenantId             String               @map("tenant_id")
+  contentType          ContentType          @map("content_type")
+  title                String
+  status               ContentStatus        @default(ACTIVE)
+  lifecycleStatus      LifecycleStatus      @default(RAW) @map("lifecycle_status")
+  confidentialityLevel ConfidentialityLevel @default(INTERNAL) @map("confidentiality_level")
+
+  // A4: "كل الفيديوهات" = no eventId; "فيديوهات الحدث" = same table
+  // filtered by eventId — one query, one controller, per the spec. An
+  // "event" here is just another content_item (self-relation) rather than
+  // a whole separate table, keeping search/permissions/audit unified as
+  // C1 asks. This is an interpretation call on my part since the spec
+  // doesn't model "event" as its own table explicitly — flag if you'd
+  // rather it be a first-class Event model.
+  eventId String? @map("event_id")
+
+  // A10: controlled vocabulary instead of free text.
+  eventTypeId String? @map("event_type_id")
+
+  // Free-form per-tenant fields (e.g. a ministry's "رقم القرار الوزاري")
+  // without ever touching the table structure. See C1.
+  metadata  Json     @default("{}")
+
+  // C3: computed at creation from whatever RetentionPolicy is active at
+  // that moment for this tenant+contentType — snapshotted (not a live FK)
+  // so a later policy change never retroactively changes an already-set
+  // expiry, per the spec's explicit warning about that.
+  retentionExpiryDate    DateTime? @map("retention_expiry_date")
+  appliedRetentionPolicy Json?     @map("applied_retention_policy")
+
+  // C3: soft-delete grace period before the retention cron hard-deletes.
+  deletedAt DateTime? @map("deleted_at")
+
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant       @relation(fields: [tenantId], references: [id])
+  creator   User         @relation("ContentItemCreatedBy", fields: [createdBy], references: [id])
+  event     ContentItem? @relation("ContentItemEvent", fields: [eventId], references: [id])
+  eventItems ContentItem[] @relation("ContentItemEvent")
+  eventType EventType?   @relation(fields: [eventTypeId], references: [id])
+
+  statusTransitions StatusTransition[]
+  revisions         EventRevision[]
+  tasks             Task[]
+  relationsAsSource ContentRelation[] @relation("RelationSource")
+  relationsAsTarget ContentRelation[] @relation("RelationTarget")
+  documentFile      DocumentFile?
+  sharedWith        SharedResource[]
+
+  // B1: full-text search. Prisma can't express the trigger that keeps
+  // this in sync (see prisma/sql/fulltext_search.sql) — the column here
+  // just tells Prisma the field exists so it doesn't try to drop it, and
+  // `Unsupported` means it's invisible to normal Prisma Client queries;
+  // SearchService reads it exclusively via $queryRaw.
+  searchVector Unsupported("tsvector")? @map("search_vector")
+
+  @@index([tenantId])
+  @@index([tenantId, contentType])
+  @@index([tenantId, confidentialityLevel])
+  @@index([tenantId, eventId])
+  @@index([searchVector], type: Gin, name: "content_items_search_idx")
+  @@map("content_items")
+}
+
+// -----------------------------------------------------------------------
+// audit_logs — append-only. No `updatedAt`, and the Prisma client
+// extension in PrismaService throws on any update()/delete() call
+// against this model, so not even SuperAdmin can edit history via the
+// application layer (see prisma.service.ts).
+//
+// Note: the appendix's field list is (user_id, action_type, resource_type,
+// resource_id, timestamp, ip_address, metadata). tenantId was ADDED here
+// because instruction #4 requires tenant_id on every main table and this
+// is one of them — flagging it explicitly per instruction #6 rather than
+// silently deviating from the appendix. Happy to drop it if you'd rather
+// derive tenant scope purely from the joined user instead.
+// -----------------------------------------------------------------------
+model AuditLog {
+  id           String   @id @default(uuid())
+  tenantId     String   @map("tenant_id") // <-- added, see note above
+  userId       String?  @map("user_id") // nullable: failed logins may have no resolved user yet
+  actionType   String   @map("action_type") // e.g. "content_item.view", "content_item.download", "auth.login_failed"
+  resourceType String   @map("resource_type") // e.g. "content_item", "user", "auth"
+  resourceId   String?  @map("resource_id")
+  timestamp    DateTime @default(now())
+  ipAddress    String?  @map("ip_address")
+  metadata     Json     @default("{}")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, resourceType, resourceId])
+  @@index([tenantId, timestamp])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// PHASE 2 — القسم أ + B1/B2/B4
+//
+// Same convention as audit_logs in Phase 1: every model below gets a
+// tenantId even where the appendix doesn't list one explicitly, because
+// instruction #4/#6 requires tenant_id on every main table. Flagging it
+// once here instead of repeating the note on each model.
+// ============================================================================
+
+// A5: علاقات بين عناصر المحتوى، كل علاقة بسبب واضح.
+enum RelationType {
+  SAME_EVENT
+  SAME_PERSON
+  SAME_LOCATION
+  MANUAL
+}
+
+model ContentRelation {
+  id              String       @id @default(uuid())
+  tenantId        String       @map("tenant_id")
+  sourceId        String       @map("source_id")
+  targetId        String       @map("target_id")
+  relationType    RelationType @map("relation_type")
+  confidenceScore Float?       @map("confidence_score") // null for MANUAL relations
+  createdBy       String       @map("created_by")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  source ContentItem @relation("RelationSource", fields: [sourceId], references: [id])
+  target ContentItem @relation("RelationTarget", fields: [targetId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, sourceId])
+  @@map("content_relations")
+}
+
+// A6: دورة حياة العنصر — كل انتقال حالة له سجل، مرتبط بـ audit trail.
+model StatusTransition {
+  id            String          @id @default(uuid())
+  tenantId      String          @map("tenant_id")
+  contentItemId String          @map("content_item_id")
+  fromStatus    LifecycleStatus @map("from_status")
+  toStatus      LifecycleStatus @map("to_status")
+  changedBy     String          @map("changed_by")
+  changedAt     DateTime        @default(now()) @map("changed_at")
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, contentItemId])
+  // append-only, same rationale as audit_logs — see PrismaService.
+  @@map("status_transitions")
+}
+
+// A7/A8/A9/B4: نتائج AI المعلّقة — موحد لكل الأدوات الثلاث.
+enum PredictionType {
+  CHARACTER
+  TEXT
+  VIDEO_PROCESSING
+  BRAND
+}
+
+enum PredictionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AiPrediction {
+  id              String           @id @default(uuid())
+  tenantId        String           @map("tenant_id")
+  resourceId      String           @map("resource_id") // the content_item this prediction is about
+  predictionType  PredictionType   @map("prediction_type")
+  predictedValue  Json             @map("predicted_value") // shape varies by predictionType
+  confidenceScore Float            @map("confidence_score")
+  status          PredictionStatus @default(PENDING)
+  reviewedBy      String?          @map("reviewed_by")
+  reviewedAt      DateTime?        @map("reviewed_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, resourceId])
+  @@map("ai_predictions")
+}
+
+// A7: اقتراحات دمج شخصيات مكررة.
+enum MergeSuggestionStatus {
+  PENDING
+  MERGED
+  REJECTED
+}
+
+model PendingMergeSuggestion {
+  id              String                 @id @default(uuid())
+  tenantId        String                 @map("tenant_id")
+  recordIdA       String                 @map("record_id_a")
+  recordIdB       String                 @map("record_id_b")
+  similarityScore Float                  @map("similarity_score")
+  status          MergeSuggestionStatus  @default(PENDING)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  resolvedAt      DateTime?              @map("resolved_at")
+  resolvedBy      String?                @map("resolved_by")
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@map("pending_merge_suggestions")
+}
+
+// A10: قائمة أنواع أحداث مضبوطة، هيكلية اختياريًا.
+model EventType {
+  id       String  @id @default(uuid())
+  tenantId String  @map("tenant_id")
+  name     String
+  parentId String? @map("parent_id")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  parent       EventType?    @relation("EventTypeHierarchy", fields: [parentId], references: [id])
+  children     EventType[]   @relation("EventTypeHierarchy")
+  contentItems ContentItem[]
+
+  @@unique([tenantId, name, parentId])
+  @@index([tenantId])
+  @@map("event_types")
+}
+
+// A3: تجميع عناصر الـ sidebar — configurable بدل hardcoded، فيه tenant
+// يقدر يشيل قسم "الشخصيات/العلامات" كله لو مش محتاجه (عميل حكومي مثلاً).
+model NavSection {
+  id         String  @id @default(uuid())
+  tenantId   String  @map("tenant_id")
+  role       Role?   @map("role") // null = applies to every role in the tenant
+  sectionName String @map("section_name")
+  items      Json    @map("items") // ordered array of item keys, e.g. ["video_list","photo_list"]
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("nav_sections")
+}
+
+// A11: مهام الباحثين، مرتبطة بعناصر فعلية (لا مصدر بيانات منفصل عن الداشبورد).
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+model Task {
+  id            String     @id @default(uuid())
+  tenantId      String     @map("tenant_id")
+  researcherId  String     @map("researcher_id")
+  contentItemId String     @map("content_item_id")
+  taskType      String     @map("task_type") // e.g. "ai_review", "metadata_edit" — free text, low cardinality by convention
+  dueDate       DateTime?  @map("due_date")
+  status        TaskStatus @default(PENDING)
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  researcher  User        @relation(fields: [researcherId], references: [id])
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, researcherId])
+  @@index([tenantId, status])
+  @@map("tasks")
+}
+
+// B2: نسخ تاريخية قبل أي تعديل — version history. Append-only, same as
+// audit_logs and status_transitions: a version history you can rewrite
+// isn't a version history.
+model EventRevision {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  resourceId     String   @map("resource_id")
+  snapshot       Json
+  versionNumber  Int      @map("version_number")
+  changedBy      String   @map("changed_by")
+  changedAt      DateTime @default(now()) @map("changed_at")
+
+  contentItem ContentItem @relation(fields: [resourceId], references: [id])
+
+  @@unique([resourceId, versionNumber])
+  @@index([tenantId])
+  @@map("event_revisions")
+}
+
+// A12: جلسات نشطة، قابلة للإلغاء عن بُعد. Also doubles as the "remember
+// this device for X days" store for A1's 2FA flow.
+model ActiveSession {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  userId           String   @map("user_id")
+  deviceInfo       String?  @map("device_info")
+  ip               String?
+  lastActive       DateTime @default(now()) @map("last_active")
+  sessionTokenHash String   @map("session_token_hash")
+  twoFactorTrustedUntil DateTime? @map("two_factor_trusted_until")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, userId])
+  @@index([sessionTokenHash])
+  @@map("active_sessions")
+}
+
+// B1: بحث محفوظ لكل مستخدم — يتحول لاستعلام على الفهرس (هنا: search_vector)
+// وقت التشغيل، مش نسخة مخزَّنة من النتائج نفسها.
+model SavedSearch {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  userId      String   @map("user_id")
+  name        String
+  queryParams Json     @map("query_params")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId])
+  @@index([tenantId, userId])
+  @@map("saved_searches")
+}
+
+// A2: جدول تجميعي للداشبورد، يتحدث عبر cron بدل استعلام حي على جداول ضخمة.
+// (غير مذكور صراحة في ملحق الجداول — إضافة بنيوية بحتة لأداء الداشبورد،
+// المصدر الحقيقي يفضل content_items/tasks زي ما نص القسم A2 يطلب.)
+model DashboardSnapshot {
+  id                 String   @id @default(uuid())
+  tenantId           String   @map("tenant_id")
+  totalByContentType Json     @map("total_by_content_type")
+  pendingAiReview    Int      @map("pending_ai_review")
+  storageUsedBytes   BigInt   @map("storage_used_bytes")
+  recentAdditions    Json     @map("recent_additions")
+  restrictedAlerts   Int      @map("restricted_alerts")
+  computedAt         DateTime @default(now()) @map("computed_at")
+
+  @@index([tenantId, computedAt])
+  @@map("dashboard_snapshots")
+}
+
+// ============================================================================
+// PHASE 3 — C2 (مستندات) + C3 (احتفاظ) + C4 (مشاركة بين عملاء)
+// Same tenant_id convention as Phase 1/2 — flagged once here, not per model.
+// ============================================================================
+
+enum OcrStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+// C2: حقول خاصة بمستندات PDF/Word — الجدول الفرعي المرتبط بـ content_items
+// عبر foreign key، بالظبط زي ما C1 يطلب لأي نوع محتوى غير الوسائط المرئية.
+model DocumentFile {
+  id            String    @id @default(uuid())
+  tenantId      String    @map("tenant_id")
+  contentItemId String    @unique @map("content_item_id")
+  storagePath   String    @map("storage_path") // s3://<bucket>/tenants/<tenantId>/documents/<id>.<ext>
+  pageCount     Int?      @map("page_count")
+  ocrStatus     OcrStatus @default(PENDING) @map("ocr_status")
+  ocrError      String?   @map("ocr_error") // populated when ocrStatus = FAILED, per spec's "تنبيه واضح بدلاً من بقاء الملف معلقًا دون تفسير"
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, ocrStatus])
+  @@map("document_files")
+}
+
+enum RetentionAction {
+  ARCHIVE
+  DELETE
+  NOTIFY_ONLY
+}
+
+// C3: سياسة احتفاظ لكل نوع محتوى/tenant — تُحسب وتُنسخ على كل content_item
+// وقت إنشائه (انظر ContentItem.appliedRetentionPolicy)، مش مرجع حي.
+model RetentionPolicy {
+  id                 String          @id @default(uuid())
+  tenantId           String          @map("tenant_id")
+  contentType        ContentType     @map("content_type")
+  retentionPeriodDays Int            @map("retention_period_days")
+  actionOnExpiry     RetentionAction @map("action_on_expiry")
+  isActive           Boolean         @default(true) @map("is_active")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  @@unique([tenantId, contentType])
+  @@index([tenantId])
+  @@map("retention_policies")
+}
+
+enum SharePermission {
+  VIEW
+  EDIT
+}
+
+// C4: مشاركة مورد بين عملاء مختلفين. الـ tenantId هنا هو التenant المشارَك
+// *معه* (tenant B)، بينما ملكية المورد الأصلية تُعرف من content_items.tenant_id
+// (tenant A). PolicyService.can() يقرأ هذا الجدول ليقرر هل tenant آخر مسموح
+// له بالوصول رغم حاجز tenant_id الأساسي.
+model SharedResource {
+  id              String          @id @default(uuid())
+  contentItemId   String          @map("content_item_id")
+  tenantId        String          @map("tenant_id") // the tenant being granted access
+  permissionLevel SharePermission @map("permission_level")
+  sharedBy        String          @map("shared_by")
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  contentItem ContentItem @relation(fields: [contentItemId], references: [id])
+
+  @@unique([contentItemId, tenantId])
+  @@index([tenantId])
+  @@index([contentItemId])
+  @@map("shared_resources")
+}
