@@ -70,6 +70,7 @@ export class DashboardService {
 
     return this.prisma.scoped.dashboardSnapshot.create({
       data: {
+        tenantId,
         totalByContentType: Object.fromEntries(byType.map((b) => [b.contentType, b._count])),
         pendingAiReview,
         storageUsedBytes: 0n,

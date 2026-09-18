@@ -16,6 +16,12 @@ export class BrandsService {
 
   create(dto: CreateBrandDto) {
     const ctx = this.tenantContext.get()!;
-    return this.prisma.scoped.brand.create({ data: { ...dto, createdBy: ctx.userId } });
+    return this.prisma.scoped.brand.create({
+      data: {
+        ...dto,
+        tenantId: ctx.tenantId,
+        createdBy: ctx.userId,
+      },
+    });
   }
 }

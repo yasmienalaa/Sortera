@@ -28,6 +28,12 @@ export class ContentRelationsService {
 
   create(dto: CreateRelationDto) {
     const ctx = this.tenantContext.get()!;
-    return this.prisma.scoped.contentRelation.create({ data: { ...dto, createdBy: ctx.userId } });
+    return this.prisma.scoped.contentRelation.create({
+      data: {
+        ...dto,
+        tenantId: ctx.tenantId,
+        createdBy: ctx.userId,
+      },
+    });
   }
 }
