@@ -53,7 +53,7 @@ export class DashboardService {
   }
 
   private async computeForTenant(tenantId: string) {
-    const [byType, pendingAiReview, recentAdditions, restrictedAlerts] = await Promise.all([
+    const [byType, pendingAiReview, recentAdditions, restrictedAlerts, pendingTasks] = await Promise.all([
       this.prisma.scoped.contentItem.groupBy({ by: ['contentType'], _count: true }),
       this.prisma.scoped.aiPrediction.count({ where: { status: 'PENDING' } }),
       this.prisma.scoped.contentItem.findMany({
@@ -61,26 +61,22 @@ export class DashboardService {
         take: 5,
         select: { id: true, title: true, contentType: true, createdAt: true },
       }),
-      // "تنبيهات على محتوى حساس يحتاج موافقة" — interpreted as RESTRICTED
-      // items still sitting in RAW/READY_FOR_REVIEW (i.e. not yet
-      // published/archived, so still awaiting a decision). Flagging this
-      // interpretation since the spec doesn't define "needs approval"
-      // precisely for content_items the way it does for ai_predictions.
       this.prisma.scoped.contentItem.count({
         where: { confidentialityLevel: 'RESTRICTED', lifecycleStatus: { in: ['RAW', 'READY_FOR_REVIEW'] } },
       }),
+      // A11: "الداشبورد يُغذَّى من نفس هذا الجدول [tasks]" — was missing.
+      this.prisma.scoped.task.count({ where: { status: { in: ['PENDING', 'IN_PROGRESS'] } } }),
     ]);
 
     return this.prisma.scoped.dashboardSnapshot.create({
       data: {
         totalByContentType: Object.fromEntries(byType.map((b) => [b.contentType, b._count])),
         pendingAiReview,
-        // Real storage accounting depends on the object-storage layer
-        // (Phase 3 / C2) — 0 until that's wired up.
         storageUsedBytes: 0n,
         recentAdditions,
         restrictedAlerts,
-      } as any,
+        pendingTasks,
+      },
     });
   }
 }

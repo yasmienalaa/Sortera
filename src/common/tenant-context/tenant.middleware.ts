@@ -26,7 +26,14 @@ interface JwtPayload {
   aud?: 'internal' | 'researcher-portal';
 }
 
-const PUBLIC_PATHS = ['/auth/login', '/health', '/researcher-portal/register', '/researcher-portal/login'];
+const PUBLIC_PATHS = [
+  '/auth/login',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/health',
+  '/researcher-portal/register',
+  '/researcher-portal/login',
+];
 
 // Routes a 'pending_2fa' token is allowed to hit — nothing else. This is
 // the actual enforcement of A1's "بدون تخطٍ": there is no server-side path

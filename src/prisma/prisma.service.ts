@@ -36,6 +36,8 @@ const TENANT_SCOPED_MODELS = new Set([
   'ResearcherAccount',
   'AccessRequest',
   'WatermarkJob',
+  'Character',
+  'Brand',
   // SharedResource is DELIBERATELY NOT in this set. Its tenant_id column
   // means "the tenant granted access" (the recipient), not "the owning
   // tenant" — the usual assumption this extension makes everywhere else.

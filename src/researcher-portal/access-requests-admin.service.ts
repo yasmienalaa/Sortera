@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant-context/tenant-context.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const DEFAULT_APPROVAL_VALIDITY_DAYS = 30;
 
@@ -9,6 +10,7 @@ export class AccessRequestsAdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
+    private readonly notifications: NotificationService,
   ) {}
 
   listPending() {
@@ -21,10 +23,13 @@ export class AccessRequestsAdminService {
 
   async approve(id: string, validityDays = DEFAULT_APPROVAL_VALIDITY_DAYS) {
     const ctx = this.tenantContext.get()!;
-    const request = await this.prisma.scoped.accessRequest.findFirst({ where: { id } });
+    const request = await this.prisma.scoped.accessRequest.findFirst({
+      where: { id },
+      include: { researcher: true, contentItem: { select: { title: true } } },
+    });
     if (!request) throw new NotFoundException('Access request not found');
 
-    return this.prisma.scoped.accessRequest.update({
+    const updated = await this.prisma.scoped.accessRequest.update({
       where: { id },
       data: {
         status: 'APPROVED',
@@ -33,6 +38,9 @@ export class AccessRequestsAdminService {
         expiryDate: new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000),
       },
     });
+
+    await this.notifications.sendAccessRequestApproved(request.researcher.email, request.contentItem.title);
+    return updated;
   }
 
   async reject(id: string) {

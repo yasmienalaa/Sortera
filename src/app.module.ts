@@ -22,6 +22,11 @@ import { RetentionModule } from './retention/retention.module';
 import { SharingModule } from './sharing/sharing.module';
 import { MediaModule } from './media/media.module';
 import { ResearcherPortalModule } from './researcher-portal/researcher-portal.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { CharactersModule } from './characters/characters.module';
+import { BrandsModule } from './brands/brands.module';
+import { ContentRelationsModule } from './content-relations/content-relations.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -58,6 +63,11 @@ import { HealthController } from './health.controller';
     SharingModule,
     MediaModule,
     ResearcherPortalModule,
+    NotificationsModule,
+    CharactersModule,
+    BrandsModule,
+    ContentRelationsModule,
+    AuditLogsModule,
   ],
 })
 export class AppModule implements NestModule {

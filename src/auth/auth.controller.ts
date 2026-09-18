@@ -4,6 +4,8 @@ import { AuthService } from './auth.service';
 import { ActiveSessionsService } from './active-sessions.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyTwoFactorDto } from './dto/verify-two-factor.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AuthedRequest } from '../common/tenant-context/tenant.middleware';
 
 @Controller('auth')
@@ -16,6 +18,16 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto, @Req() req: Request) {
     return this.authService.login(dto, { ipAddress: req.ip, userAgent: req.headers['user-agent'] });
+  }
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 
   // Bearer auth here is the 'pending_2fa' token returned by /auth/login —

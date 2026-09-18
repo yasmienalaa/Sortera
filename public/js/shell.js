@@ -16,7 +16,9 @@ const NAV_ITEM_META = {
   ai_brands: { label: 'Ai العلامات التجارية', icon: '✦', href: '/ai-predictions.html?type=BRAND' },
   ai_clip_characters: { label: 'Ai شخصيات المقاطع', icon: '✦', href: '/ai-predictions.html?type=CHARACTER' },
   ai_clip_text: { label: 'Ai نص المقطع', icon: '✦', href: '/ai-predictions.html?type=TEXT' },
-  characters: { label: 'الشخصيات (مراجعة التكرار)', icon: '👥', href: '/merge-suggestions.html' },
+  characters: { label: 'الشخصيات', icon: '👥', href: '/persons-list.html' },
+  merge_suggestions: { label: 'دمج المكررين', icon: '🔀', href: '/merge-suggestions.html' },
+  brands: { label: 'العلامات التجارية', icon: '🏷', href: '/brands.html' },
   researcher_list: { label: 'مهام الباحثين', icon: '👤', href: '/tasks.html' },
   event_type: { label: 'نوع الحدث', icon: '📖', href: '/event-types.html' },
   settings: { label: 'الإعدادات', icon: '⚙', href: '/settings.html' },
@@ -64,6 +66,9 @@ async function renderShell(activeHref) {
       </div>
       <a class="nav-item${activeHref === '/dashboard.html' ? ' active' : ''}" href="/dashboard.html">
         <span class="nav-icon">▦</span>لوحة التحكم
+      </a>
+      <a class="nav-item${activeHref === '/search.html' ? ' active' : ''}" href="/search.html">
+        <span class="nav-icon">🔍</span>البحث
       </a>
       ${sectionsHtml}
       <div class="sidebar-footer">

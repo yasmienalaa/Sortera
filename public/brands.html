@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>العلامات التجارية — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">العلامات التجارية</h1>
+        <button class="btn btn-primary" style="width:auto;" id="addBtn">+ أضف علامة</button>
+      </div>
+
+      <div class="card" style="margin-bottom:20px; display:none;" id="addCard">
+        <div style="display:flex; gap:10px; align-items:end;">
+          <div class="field" style="margin:0; flex:1;"><label>اسم العلامة</label>
+            <input id="fName" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <button class="btn btn-primary" style="width:auto; height:42px;" id="saveBtn">حفظ</button>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <table class="data-table">
+          <thead><tr><th>الاسم</th><th>تاريخ الإضافة</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;"><div class="avatar-lg">🏷</div>لا توجد علامات تجارية بعد</div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) { renderShell('/brands.html'); load(); }
+
+    document.getElementById('addBtn').addEventListener('click', () => {
+      document.getElementById('addCard').style.display = 'block';
+    });
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const name = document.getElementById('fName').value.trim();
+      if (!name) return;
+      try {
+        await HBJ.api('/brands', { method: 'POST', body: JSON.stringify({ name }) });
+        document.getElementById('fName').value = '';
+        document.getElementById('addCard').style.display = 'none';
+        load();
+      } catch (err) { showToast(err.message, true); }
+    });
+
+    async function load() {
+      try {
+        const items = await HBJ.api('/brands');
+        const tbody = document.getElementById('tableBody');
+        if (items.length === 0) { document.getElementById('emptyState').style.display = 'block'; tbody.innerHTML=''; return; }
+        document.getElementById('emptyState').style.display = 'none';
+        tbody.innerHTML = items.map((b) => `<tr><td>${escapeHtml(b.name)}</td><td>${new Date(b.createdAt).toLocaleDateString('ar-EG')}</td></tr>`).join('');
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

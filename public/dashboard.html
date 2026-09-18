@@ -30,6 +30,12 @@
             <div class="kpi-value" id="pendingAiReview">—</div>
           </div>
 
+          <div class="card">
+            <div class="kpi-icon">📋</div>
+            <div class="kpi-label">مهام باحثين لسه مفتوحة</div>
+            <div class="kpi-value" id="pendingTasks">—</div>
+          </div>
+
           <div class="card" id="restrictedCard">
             <div class="kpi-icon">⚠</div>
             <div class="kpi-label">تنبيهات محتوى حساس يحتاج موافقة</div>
@@ -92,6 +98,7 @@
         : '<span class="kpi-label">لا يوجد محتوى بعد</span>';
 
       document.getElementById('pendingAiReview').textContent = data.pendingAiReview ?? 0;
+      document.getElementById('pendingTasks').textContent = data.pendingTasks ?? 0;
       document.getElementById('restrictedAlerts').textContent = data.restrictedAlerts ?? 0;
 
       const restrictedCard = document.getElementById('restrictedCard');

@@ -50,6 +50,43 @@
     </main>
   </div>
 
+  <!-- Slide-in panel, same pattern as the original site's "إضافة حدث" screen -->
+  <div id="addOverlay" style="display:none; position:fixed; inset:0; background:rgba(16,24,40,.4); z-index:100;">
+    <div style="position:absolute; top:0; left:0; height:100%; width:min(480px, 100%); background:var(--color-surface); box-shadow:-4px 0 24px rgba(0,0,0,.1); padding:32px; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h2 style="margin:0; font-size:20px; font-weight:800;" id="addPanelTitle">إضافة عنصر</h2>
+        <button id="closeAddPanel" style="background:none; border:none; font-size:20px; color:var(--color-text-muted);">✕</button>
+      </div>
+
+      <div id="addFormError" class="form-error"></div>
+
+      <form id="addForm">
+        <div class="field" id="fileFieldWrap">
+          <label>الملف</label>
+          <input type="file" id="fFile" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <div class="field">
+          <label>العنوان</label>
+          <input type="text" id="fTitle" required style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <div class="field">
+          <label>مستوى السرية</label>
+          <select id="fConf" style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);">
+            <option value="INTERNAL">داخلي</option>
+            <option value="PUBLIC">عام</option>
+            <option value="CONFIDENTIAL">سري</option>
+            <option value="RESTRICTED">مقيّد</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>معرّف الحدث (اختياري)</label>
+          <input type="text" id="fEventId" style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitAddBtn"><span id="submitAddLabel">حفظ</span></button>
+      </form>
+    </div>
+  </div>
+
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
@@ -71,9 +108,75 @@
 
     document.getElementById('lifecycleFilter').addEventListener('change', load);
     document.getElementById('searchBox').addEventListener('input', debounce(load, 300));
+
+    // ---- Add panel ----
+    const addOverlay = document.getElementById('addOverlay');
     document.getElementById('addBtn').addEventListener('click', () => {
-      showToast('نموذج الإضافة هيتبنى لاحقًا — الـ API (POST /content-items) شغال ومختبر بالفعل.');
+      document.getElementById('addPanelTitle').textContent = `إضافة ${TYPE_LABELS[contentType] || 'عنصر'}`;
+      document.getElementById('fileFieldWrap').style.display = contentType ? 'block' : 'none';
+      addOverlay.style.display = 'block';
     });
+    document.getElementById('closeAddPanel').addEventListener('click', () => { addOverlay.style.display = 'none'; });
+    addOverlay.addEventListener('click', (e) => { if (e.target === addOverlay) addOverlay.style.display = 'none'; });
+
+    document.getElementById('addForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorBox = document.getElementById('addFormError');
+      errorBox.classList.remove('visible');
+      const submitBtn = document.getElementById('submitAddBtn');
+      const submitLabel = document.getElementById('submitAddLabel');
+      submitBtn.disabled = true;
+      submitLabel.innerHTML = '<span class="spinner"></span>';
+
+      const title = document.getElementById('fTitle').value.trim();
+      const confidentialityLevel = document.getElementById('fConf').value;
+      const eventId = document.getElementById('fEventId').value.trim() || undefined;
+      const file = document.getElementById('fFile').files[0];
+
+      try {
+        if (contentType === 'VIDEO' || contentType === 'IMAGE') {
+          if (!file) throw new Error('لازم تختاري ملف');
+          await uploadFile('/media', file, { contentType, title, confidentialityLevel, eventId });
+        } else if (contentType === 'DOCUMENT') {
+          if (!file) throw new Error('لازم تختاري ملف');
+          await uploadFile('/documents', file, { title, confidentialityLevel, eventId });
+        } else {
+          // No specific type context (viewing "كل المحتوى") — falls back to
+          // a metadata-only record via the generic API, no file attached.
+          await HBJ.api('/content-items', {
+            method: 'POST',
+            body: JSON.stringify({ contentType: 'DOCUMENT', title, confidentialityLevel, eventId }),
+          });
+        }
+        addOverlay.style.display = 'none';
+        document.getElementById('addForm').reset();
+        showToast('تمت الإضافة بنجاح');
+        load();
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add('visible');
+      } finally {
+        submitBtn.disabled = false;
+        submitLabel.textContent = 'حفظ';
+      }
+    });
+
+    /** multipart upload — HBJ.api() always sends JSON, so this bypasses it
+     * deliberately for the two file-upload endpoints. */
+    async function uploadFile(path, file, fields) {
+      const formData = new FormData();
+      formData.append('file', file);
+      Object.entries(fields).forEach(([k, v]) => { if (v !== undefined) formData.append(k, v); });
+
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${HBJ.getAccessToken()}` },
+        body: formData,
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(body.message) ? body.message.join(', ') : body.message || 'فشل الرفع');
+      return body;
+    }
 
     async function load() {
       try {
@@ -109,18 +212,9 @@
           <td><span class="badge ${LIFECYCLE_BADGE[item.lifecycleStatus] || 'badge-neutral'}">${LIFECYCLE_LABELS[item.lifecycleStatus] || item.lifecycleStatus}</span></td>
           <td><span class="badge ${CONF_BADGE[item.confidentialityLevel] || 'badge-neutral'}">${CONF_LABELS[item.confidentialityLevel] || item.confidentialityLevel}</span></td>
           <td>${new Date(item.createdAt).toLocaleDateString('ar-EG')}</td>
-          <td><a href="#" onclick="viewItem('${item.id}'); return false;" title="عرض">👁</a></td>
+          <td><a href="/content-item-detail.html?id=${item.id}" title="عرض">👁</a></td>
         </tr>
       `).join('');
-    }
-
-    async function viewItem(id) {
-      try {
-        const item = await HBJ.api(`/content-items/${id}`);
-        alert(`${item.title}\nالحالة: ${LIFECYCLE_LABELS[item.lifecycleStatus]}\nالسرية: ${CONF_LABELS[item.confidentialityLevel]}`);
-      } catch (err) {
-        showToast(err.message, true);
-      }
     }
 
     function debounce(fn, ms) {

@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant-context/tenant-context.service';
 import { AuditService } from '../common/audit/audit.service';
+import { NotificationService } from '../notifications/notification.service';
 
 const SOFT_DELETE_GRACE_DAYS = 7;
 
@@ -14,6 +15,7 @@ export class RetentionEnforcementService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
     private readonly auditService: AuditService,
+    private readonly notifications: NotificationService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
@@ -59,10 +61,12 @@ export class RetentionEnforcementService {
             where: { id: item.id },
             data: { deletedAt: new Date(), status: 'DELETED' },
           });
+        } else if (action === 'NOTIFY_ONLY') {
+          const creator = await this.prisma.scoped.user.findFirst({ where: { id: item.createdBy } });
+          if (creator) {
+            await this.notifications.sendRetentionNotice(creator.email, item.title, item.retentionExpiryDate!);
+          }
         }
-        // NOTIFY_ONLY: intentionally no state change — a real notification
-        // channel (email/Slack) is a follow-up; for now this at least
-        // shows up in audit_logs below so it's not silently lost.
 
         await this.auditService.record({
           actionType: `content_item.retention_${(action ?? 'notify_only').toLowerCase()}`,

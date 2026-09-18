@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تفاصيل العنصر — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main" style="max-width:800px;">
+      <div id="content"></div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    const LIFECYCLE_ORDER = ['RAW', 'IN_PRODUCTION', 'READY_FOR_REVIEW', 'PUBLISHED', 'ARCHIVED'];
+    const LIFECYCLE_LABELS = { RAW: 'خام', IN_PRODUCTION: 'قيد الإنتاج', READY_FOR_REVIEW: 'جاهز للمراجعة', PUBLISHED: 'منشور', ARCHIVED: 'مؤرشف' };
+    const CONF_LABELS = { PUBLIC: 'عام', INTERNAL: 'داخلي', CONFIDENTIAL: 'سري', RESTRICTED: 'مقيّد' };
+    const RELATION_LABELS = { SAME_EVENT: 'نفس الحدث', SAME_PERSON: 'نفس الشخصية', SAME_LOCATION: 'نفس المكان', MANUAL: 'يدوي' };
+    const id = new URLSearchParams(location.search).get('id');
+
+    if (HBJ.requireAuth()) { renderShell(''); load(); }
+
+    async function load() {
+      const c = document.getElementById('content');
+      try {
+        const item = await HBJ.api(`/content-items/${id}`);
+        const nextStatus = LIFECYCLE_ORDER[LIFECYCLE_ORDER.indexOf(item.lifecycleStatus) + 1];
+
+        c.innerHTML = `
+          <div class="card" style="margin-bottom:20px;">
+            <span class="badge badge-neutral">${item.contentType}</span>
+            <h1 style="margin:12px 0 6px;">${escapeHtml(item.title)}</h1>
+            <p style="color:var(--color-text-muted); font-size:13px;">
+              الحالة: <strong>${LIFECYCLE_LABELS[item.lifecycleStatus]}</strong> ·
+              السرية: <strong>${CONF_LABELS[item.confidentialityLevel]}</strong> ·
+              أُضيف: ${new Date(item.createdAt).toLocaleDateString('ar-EG')}
+            </p>
+            ${nextStatus
+              ? `<button class="btn btn-primary" style="width:auto;" onclick="transition('${nextStatus}')">نقل لمرحلة: ${LIFECYCLE_LABELS[nextStatus]} ←</button>`
+              : `<span class="badge badge-success">آخر مرحلة في دورة الحياة</span>`}
+          </div>
+
+          ${item.contentType === 'DOCUMENT' ? `<div class="card" style="margin-bottom:20px;" id="docStatusCard"><h2 class="card-title">حالة معالجة المستند</h2><div id="docStatus">جاري التحقق...</div></div>` : ''}
+
+          <div class="card" style="margin-bottom:20px;">
+            <h2 class="card-title">عناصر مرتبطة (A5)</h2>
+            <div id="relationsList" style="margin-bottom:16px;"></div>
+            <details>
+              <summary style="cursor:pointer; color:var(--color-primary); font-size:13px;">+ ربط عنصر يدويًا</summary>
+              <div style="display:flex; gap:8px; margin-top:10px;">
+                <input id="relTargetId" placeholder="معرّف العنصر التاني" style="flex:1; padding:8px; border:1px solid var(--color-border); border-radius:8px;" />
+                <select id="relType" style="padding:8px; border:1px solid var(--color-border); border-radius:8px;">
+                  <option value="SAME_EVENT">نفس الحدث</option><option value="SAME_PERSON">نفس الشخصية</option>
+                  <option value="SAME_LOCATION">نفس المكان</option><option value="MANUAL">يدوي</option>
+                </select>
+                <button class="btn btn-secondary" style="width:auto;" onclick="addRelation()">ربط</button>
+              </div>
+            </details>
+          </div>
+        `;
+
+        loadRelations();
+        if (item.contentType === 'DOCUMENT') loadDocStatus();
+      } catch (err) {
+        c.innerHTML = `<div class="card"><p style="color:var(--color-danger-text);">${escapeHtml(err.message)}</p></div>`;
+      }
+    }
+
+    async function transition(toStatus) {
+      try {
+        await HBJ.api(`/content-items/${id}/lifecycle`, { method: 'PATCH', body: JSON.stringify({ toStatus }) });
+        showToast('تم نقل الحالة');
+        load();
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    async function loadRelations() {
+      try {
+        const relations = await HBJ.api(`/content-relations?contentItemId=${id}`);
+        const list = document.getElementById('relationsList');
+        list.innerHTML = relations.length
+          ? relations.map((r) => `
+              <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--color-border); font-size:13px;">
+                <a href="/content-item-detail.html?id=${r.item.id}" style="color:var(--color-primary);">${escapeHtml(r.item.title)}</a>
+                <span class="badge badge-neutral">${RELATION_LABELS[r.relationType]}${r.confidenceScore ? ` (${Math.round(r.confidenceScore * 100)}%)` : ''}</span>
+              </div>`).join('')
+          : '<span style="color:var(--color-text-muted); font-size:13px;">مفيش عناصر مرتبطة لسه</span>';
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    async function addRelation() {
+      const targetId = document.getElementById('relTargetId').value.trim();
+      if (!targetId) return;
+      try {
+        await HBJ.api('/content-relations', {
+          method: 'POST',
+          body: JSON.stringify({ sourceId: id, targetId, relationType: document.getElementById('relType').value }),
+        });
+        loadRelations();
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    async function loadDocStatus() {
+      try {
+        const status = await HBJ.api(`/documents/${id}/status`);
+        const labels = { PENDING: 'في الانتظار', PROCESSING: 'جاري المعالجة...', DONE: 'تم استخراج النص بنجاح', FAILED: 'فشلت المعالجة' };
+        document.getElementById('docStatus').innerHTML = `
+          <span class="badge ${status.ocrStatus === 'DONE' ? 'badge-success' : status.ocrStatus === 'FAILED' ? 'badge-danger' : 'badge-warning'}">${labels[status.ocrStatus]}</span>
+          ${status.ocrError ? `<p style="color:var(--color-danger-text); font-size:13px; margin-top:8px;">${escapeHtml(status.ocrError)}</p>` : ''}
+          ${status.pageCount ? `<p style="color:var(--color-text-muted); font-size:13px;">${status.pageCount} صفحة</p>` : ''}
+        `;
+        if (status.ocrStatus === 'PENDING' || status.ocrStatus === 'PROCESSING') setTimeout(loadDocStatus, 3000);
+      } catch (err) {
+        document.getElementById('docStatus').textContent = 'تعذّر التحقق من الحالة';
+      }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

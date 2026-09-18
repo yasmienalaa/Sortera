@@ -70,6 +70,13 @@ model User {
   twoFactorSecret  String? @map("two_factor_secret")
   twoFactorEnabled Boolean @default(false) @map("two_factor_enabled")
 
+  // Forgot-password flow (genuinely missing from the original spec — added
+  // after a full audit flagged it). Token is a SHA-256 hash of a random
+  // opaque value (not bcrypt — this needs a fast, exact, indexable lookup
+  // by hash, unlike a password where slow verification is the point).
+  passwordResetTokenHash  String?   @map("password_reset_token_hash")
+  passwordResetExpiresAt  DateTime? @map("password_reset_expires_at")
+
   isActive  Boolean  @default(true) @map("is_active")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -82,6 +89,7 @@ model User {
   // different customers), so uniqueness is scoped per-tenant, not global.
   @@unique([tenantId, email])
   @@index([tenantId])
+  @@index([passwordResetTokenHash])
   @@map("users")
 }
 
@@ -204,12 +212,17 @@ model ContentItem {
 // is one of them — flagging it explicitly per instruction #6 rather than
 // silently deviating from the appendix. Happy to drop it if you'd rather
 // derive tenant scope purely from the joined user instead.
+//
+// FIX (found via real end-to-end testing): userId originally had a hard
+// foreign key to `User`, which meant every audit write for a
+// researcher-portal action (a completely separate identity table,
+// ResearcherAccount — see Phase 4) failed the FK constraint and was
+// silently dropped by AuditService's catch-and-log-only error handling.
+// A single unified append-only trail is more valuable for investigating
+// a sensitive resource than splitting staff vs. researcher activity into
+// two tables, so the fix is `actorType` + a plain (non-FK) userId rather
+// than a second audit table.
 // -----------------------------------------------------------------------
-// The actor behind an audit entry isn't always a `User` row — an external
-// researcher (`ResearcherAccount`, a wholly separate table per Phase 4) or
-// a cron job/worker can trigger one too. actorType records which kind so
-// userId can stay a plain identifier without an FK forcing every actor to
-// exist in `users`.
 enum AuditActorType {
   STAFF
   RESEARCHER
@@ -219,8 +232,8 @@ enum AuditActorType {
 model AuditLog {
   id           String         @id @default(uuid())
   tenantId     String         @map("tenant_id") // <-- added, see note above
-  userId       String?        @map("user_id") // nullable: failed logins may have no resolved user yet
   actorType    AuditActorType @default(STAFF) @map("actor_type")
+  userId       String?        @map("user_id") // User.id, ResearcherAccount.id, or a "system-*" label — NOT an enforced FK, see actorType
   actionType   String         @map("action_type") // e.g. "content_item.view", "content_item.download", "auth.login_failed"
   resourceType String         @map("resource_type") // e.g. "content_item", "user", "auth"
   resourceId   String?        @map("resource_id")
@@ -456,6 +469,40 @@ model SavedSearch {
   @@map("saved_searches")
 }
 
+// A7/A8: real master-data tables for Characters and Brands — flagged
+// earlier as missing (the spec only asked to improve their GOVERNANCE,
+// not rebuild storage, but a working screen needs a real table to point
+// at). Added now on request.
+model Character {
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  name              String
+  currentStatus     String?  @map("current_status")
+  description       String?
+  nationality        String?
+  personalWebsite   String?  @map("personal_website")
+  primaryPhotoPath  String?  @map("primary_photo_path")
+  additionalPhotos  Json     @default("[]") @map("additional_photos")
+  createdBy         String   @map("created_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("characters")
+}
+
+model Brand {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  name      String
+  logoPath  String?  @map("logo_path")
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("brands")
+}
 // A2: جدول تجميعي للداشبورد، يتحدث عبر cron بدل استعلام حي على جداول ضخمة.
 // (غير مذكور صراحة في ملحق الجداول — إضافة بنيوية بحتة لأداء الداشبورد،
 // المصدر الحقيقي يفضل content_items/tasks زي ما نص القسم A2 يطلب.)
@@ -467,6 +514,7 @@ model DashboardSnapshot {
   storageUsedBytes   BigInt   @map("storage_used_bytes")
   recentAdditions    Json     @map("recent_additions")
   restrictedAlerts   Int      @map("restricted_alerts")
+  pendingTasks       Int      @default(0) @map("pending_tasks")
   computedAt         DateTime @default(now()) @map("computed_at")
 
   @@index([tenantId, computedAt])

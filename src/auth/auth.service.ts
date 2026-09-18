@@ -6,9 +6,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../common/tenant-context/tenant-context.service';
 import { AuditService } from '../common/audit/audit.service';
 import { RateLimitService } from '../common/rate-limit/rate-limit.service';
+import { NotificationService } from '../notifications/notification.service';
 import { TwoFactorService } from './two-factor.service';
 import { LoginDto } from './dto/login.dto';
 import { VerifyTwoFactorDto } from './dto/verify-two-factor.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const LOGIN_LIMIT = 8;
 const LOGIN_WINDOW_SECONDS = 15 * 60;
@@ -34,6 +37,7 @@ export class AuthService {
     private readonly auditService: AuditService,
     private readonly rateLimit: RateLimitService,
     private readonly twoFactor: TwoFactorService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async login(dto: LoginDto, meta: RequestMeta) {
@@ -161,13 +165,7 @@ export class AuthService {
     const accessToken = this.signAccessToken(user, session.id);
 
     await this.tenantContext.run(
-      {
-        tenantId: user.tenantId,
-        userId: user.id,
-        role: user.role,
-        ipAddress: meta.ipAddress,
-        actorType: 'STAFF',
-      },
+      { tenantId: user.tenantId, userId: user.id, role: user.role, ipAddress: meta.ipAddress, actorType: 'STAFF' },
       () =>
         this.auditService.record({
           actionType: 'auth.two_factor_verified',
@@ -244,13 +242,7 @@ export class AuthService {
     const accessToken = this.signAccessToken(user, session.id);
 
     await this.tenantContext.run(
-      {
-        tenantId: user.tenantId,
-        userId: user.id,
-        role: user.role,
-        ipAddress: meta.ipAddress,
-        actorType: 'STAFF',
-      },
+      { tenantId: user.tenantId, userId: user.id, role: user.role, ipAddress: meta.ipAddress, actorType: 'STAFF' },
       () =>
         this.auditService.record({
           actionType: 'auth.login',
@@ -261,6 +253,64 @@ export class AuthService {
     );
 
     return { accessToken, user: this.publicUser(user) };
+  }
+
+  /**
+   * Deliberately does NOT reveal whether the email exists — always
+   * returns the same generic response, and the rate limiter (same one
+   * login uses) caps how many times an attacker can even probe.
+   */
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const ok = await this.rateLimit.consume(`forgot-password:${dto.email}`, 5, 15 * 60);
+    if (!ok) return { message: 'لو الإيميل ده مسجّل، هيوصلك رابط إعادة تعيين.' };
+
+    const candidates = await this.prisma.user.findMany({ where: { email: dto.email, isActive: true } });
+
+    for (const user of candidates) {
+      const rawToken = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordResetTokenHash: tokenHash, passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000) },
+      });
+      const resetUrl = `${process.env.APP_BASE_URL ?? ''}/reset-password.html?token=${rawToken}`;
+      await this.notifications.sendPasswordReset(user.email, resetUrl);
+    }
+
+    // Same message regardless of whether `candidates` was empty — see
+    // the no-disclosure note above.
+    return { message: 'لو الإيميل ده مسجّل، هيوصلك رابط إعادة تعيين.' };
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    const tokenHash = crypto.createHash('sha256').update(dto.token).digest('hex');
+    const user = await this.prisma.user.findFirst({
+      where: { passwordResetTokenHash: tokenHash, passwordResetExpiresAt: { gt: new Date() } },
+    });
+    if (!user) throw new UnauthorizedException('الرابط غير صالح أو منتهي الصلاحية');
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, passwordResetTokenHash: null, passwordResetExpiresAt: null },
+    });
+
+    // Reset also revokes every existing session for this user — a
+    // credential compromise scenario (which is exactly when someone
+    // resets a password) shouldn't leave old sessions valid.
+    await this.prisma.activeSession.deleteMany({ where: { userId: user.id } });
+
+    await this.tenantContext.run(
+      { tenantId: user.tenantId, userId: user.id, role: user.role, actorType: 'STAFF' },
+      () =>
+        this.auditService.record({
+          actionType: 'auth.password_reset',
+          resourceType: 'auth',
+          resourceId: user.id,
+        }),
+    );
+
+    return { message: 'تم تغيير كلمة المرور بنجاح' };
   }
 
   private publicUser(user: { id: string; tenantId: string; email: string; fullName: string; role: string }) {
