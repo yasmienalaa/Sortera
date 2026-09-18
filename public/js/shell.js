@@ -6,22 +6,22 @@
  * renders fewer sections, no frontend branching needed.
  */
 const NAV_ITEM_META = {
-  dashboard: { label: 'لوحة التحكم', icon: '▦', href: '/dashboard.html' },
-  video_list: { label: 'قائمة الفيديوهات', icon: '▶', href: '/content-items.html?type=VIDEO' },
-  photo_list: { label: 'قائمة الصور', icon: '🖼', href: '/content-items.html?type=IMAGE' },
-  document_list: { label: 'قائمة المستندات', icon: '📄', href: '/content-items.html?type=DOCUMENT' },
-  event_clips: { label: 'مقاطع الحدث', icon: '📎', href: '/content-items.html?type=VIDEO' },
-  event_photos: { label: 'صور الحدث', icon: '📎', href: '/content-items.html?type=IMAGE' },
-  video_productions: { label: 'إنتاجات الفيديو', icon: '🎬', href: '/content-items.html?type=VIDEO' },
-  ai_brands: { label: 'Ai العلامات التجارية', icon: '✦', href: '/ai-predictions.html?type=BRAND' },
-  ai_clip_characters: { label: 'Ai شخصيات المقاطع', icon: '✦', href: '/ai-predictions.html?type=CHARACTER' },
-  ai_clip_text: { label: 'Ai نص المقطع', icon: '✦', href: '/ai-predictions.html?type=TEXT' },
-  characters: { label: 'الشخصيات', icon: '👥', href: '/persons-list.html' },
-  merge_suggestions: { label: 'دمج المكررين', icon: '🔀', href: '/merge-suggestions.html' },
-  brands: { label: 'العلامات التجارية', icon: '🏷', href: '/brands.html' },
-  researcher_list: { label: 'مهام الباحثين', icon: '👤', href: '/tasks.html' },
-  event_type: { label: 'نوع الحدث', icon: '📖', href: '/event-types.html' },
-  settings: { label: 'الإعدادات', icon: '⚙', href: '/settings.html' },
+  dashboard: { label: 'لوحة التحكم', icon: 'dashboard', href: '/dashboard.html' },
+  video_list: { label: 'قائمة الفيديوهات', icon: 'video', href: '/content-items.html?type=VIDEO' },
+  photo_list: { label: 'قائمة الصور', icon: 'image', href: '/content-items.html?type=IMAGE' },
+  document_list: { label: 'قائمة المستندات', icon: 'document', href: '/content-items.html?type=DOCUMENT' },
+  event_clips: { label: 'مقاطع الحدث', icon: 'clip', href: '/content-items.html?type=VIDEO' },
+  event_photos: { label: 'صور الحدث', icon: 'clip', href: '/content-items.html?type=IMAGE' },
+  video_productions: { label: 'إنتاجات الفيديو', icon: 'film', href: '/content-items.html?type=VIDEO' },
+  ai_brands: { label: 'العلامات التجارية (ذكاء اصطناعي)', icon: 'sparkle', href: '/ai-predictions.html?type=BRAND' },
+  ai_clip_characters: { label: 'شخصيات المقاطع (ذكاء اصطناعي)', icon: 'sparkle', href: '/ai-predictions.html?type=CHARACTER' },
+  ai_clip_text: { label: 'نص المقطع (ذكاء اصطناعي)', icon: 'sparkle', href: '/ai-predictions.html?type=TEXT' },
+  characters: { label: 'الشخصيات', icon: 'people', href: '/persons-list.html' },
+  merge_suggestions: { label: 'دمج المكررين', icon: 'shuffle', href: '/merge-suggestions.html' },
+  brands: { label: 'العلامات التجارية', icon: 'tag', href: '/brands.html' },
+  researcher_list: { label: 'مهام الباحثين', icon: 'user', href: '/tasks.html' },
+  event_type: { label: 'نوع الحدث', icon: 'book', href: '/event-types.html' },
+  settings: { label: 'الإعدادات', icon: 'settings', href: '/settings.html' },
 };
 
 async function renderShell(activeHref) {
@@ -49,7 +49,7 @@ async function renderShell(activeHref) {
         if (!meta) return '';
         const isActive = activeHref && meta.href.startsWith(activeHref);
         return `<a class="nav-item${isActive ? ' active' : ''}" href="${meta.href}">
-          <span class="nav-icon">${meta.icon}</span>${meta.label}
+          <span class="nav-icon">${icon(meta.icon, 17)}</span>${meta.label}
         </a>`;
       }).join('')}
     </div>
@@ -65,15 +65,15 @@ async function renderShell(activeHref) {
         </div>
       </div>
       <a class="nav-item${activeHref === '/dashboard.html' ? ' active' : ''}" href="/dashboard.html">
-        <span class="nav-icon">▦</span>لوحة التحكم
+        <span class="nav-icon">${icon('dashboard', 17)}</span>لوحة التحكم
       </a>
       <a class="nav-item${activeHref === '/search.html' ? ' active' : ''}" href="/search.html">
-        <span class="nav-icon">🔍</span>البحث
+        <span class="nav-icon">${icon('search', 17)}</span>البحث
       </a>
       ${sectionsHtml}
       <div class="sidebar-footer">
-        <a class="nav-item" href="/profile.html"><span class="nav-icon">◎</span>الملف الشخصي</a>
-        <a class="nav-item" href="#" id="logoutLink"><span class="nav-icon">⏻</span>تسجيل الخروج</a>
+        <a class="nav-item" href="/profile.html"><span class="nav-icon">${icon('user', 17)}</span>الملف الشخصي</a>
+        <a class="nav-item" href="#" id="logoutLink"><span class="nav-icon">${icon('power', 17)}</span>تسجيل الخروج</a>
       </div>
     </aside>
   `;

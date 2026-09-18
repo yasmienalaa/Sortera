@@ -28,7 +28,7 @@
           <h2 class="card-title" style="margin:0;">الجلسات النشطة</h2>
         </div>
         <p style="padding:0 24px 16px; margin:0; font-size:13px; color:var(--color-text-muted);">
-          لو في جهاز مش عارفاه أو حاسة إن حسابك اتخترق، اعملي "إنهاء" للجلسة دي — هتتقفل فورًا حتى لو التوكن بتاعها لسه صالح (A12).
+          في حال وجود جهاز غير معروف أو الاشتباه في اختراق الحساب، يمكن إنهاء الجلسة المعنية — سيتم إغلاقها فورًا حتى لو كان الرمز الخاص بها لا يزال صالحًا.
         </p>
         <table class="data-table">
           <thead>
@@ -48,6 +48,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     if (HBJ.requireAuth()) {
@@ -91,7 +92,7 @@
     }
 
     async function revoke(id, isCurrent) {
-      if (isCurrent && !confirm('دي جلستك الحالية — إنهاؤها هيسجّل خروجك فورًا. متأكدة؟')) return;
+      if (isCurrent && !confirm('هذه هي جلستك الحالية. إنهاؤها سيؤدي إلى تسجيل خروجك فورًا. هل تريد المتابعة؟')) return;
       try {
         await HBJ.api(`/auth/sessions/${id}`, { method: 'DELETE' });
         if (isCurrent) { HBJ.logout(); return; }

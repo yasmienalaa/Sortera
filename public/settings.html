@@ -13,35 +13,36 @@
 
       <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
         <a class="card" href="/retention-policies.html" style="display:block; text-decoration:none; color:inherit;">
-          <div class="kpi-icon">🗄</div>
+          <div class="kpi-icon"></div>
           <h2 class="card-title">سياسات الاحتفاظ</h2>
-          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">تحديد مدة احتفاظ كل نوع محتوى والإجراء عند الانتهاء</p>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">تحديد مدة الاحتفاظ لكل نوع من أنواع المحتوى والإجراء المتّبع عند الانتهاء</p>
         </a>
         <a class="card" href="/sharing.html" style="display:block; text-decoration:none; color:inherit;">
-          <div class="kpi-icon">🔗</div>
+          <div class="kpi-icon"></div>
           <h2 class="card-title">المشاركة بين العملاء</h2>
-          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مشاركة محتوى مع tenant تاني بصلاحية محددة</p>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مشاركة محتوى مع جهة أخرى (Tenant) بصلاحية محددة</p>
         </a>
         <a class="card" href="/access-requests-admin.html" style="display:block; text-decoration:none; color:inherit;">
-          <div class="kpi-icon">🔎</div>
+          <div class="kpi-icon"></div>
           <h2 class="card-title">طلبات الباحثين الخارجيين</h2>
-          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مراجعة والموافقة على طلبات الوصول من بوابة الباحث الخارجي</p>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مراجعة والموافقة على طلبات الوصول الواردة من بوابة الباحث الخارجي</p>
         </a>
         <a class="card" href="/event-types.html" style="display:block; text-decoration:none; color:inherit;">
-          <div class="kpi-icon">📖</div>
+          <div class="kpi-icon"></div>
           <h2 class="card-title">أنواع الأحداث</h2>
-          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">قائمة أنواع الأحداث المضبوطة (هيكلية)</p>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">القائمة الهيكلية لأنواع الأحداث المضبوطة في النظام</p>
         </a>
         <a class="card" href="/audit-log.html" style="display:block; text-decoration:none; color:inherit;">
-          <div class="kpi-icon">📜</div>
+          <div class="kpi-icon"></div>
           <h2 class="card-title">سجل النشاط</h2>
-          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">من فتح/عدّل/نزّل أي عنصر ومتى</p>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">سجل بجميع عمليات الفتح والتعديل والتحميل لكل عنصر، مع توقيت كل عملية</p>
         </a>
       </div>
     </main>
   </div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     if (HBJ.requireAuth()) renderShell('/settings.html');

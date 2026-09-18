@@ -14,7 +14,7 @@
         <h1 class="page-title">مراجعة نتائج الذكاء الاصطناعي</h1>
       </div>
       <p style="color:var(--color-text-muted); margin-top:-16px; margin-bottom:24px; font-size:14px;">
-        كل نتيجة من أدوات الـ AI الثلاث (الشخصيات، النص، معالجة الفيديو) بتوصل هنا كـ"معلّقة" أولاً — مفيش حاجة بتتعتمد رسميًا إلا بعد موافقتك (B4).
+        كل نتيجة من أدوات الـ AI الثلاث (الشخصيات، النص، معالجة الفيديو) تصل إلى هنا بحالة "معلّقة" أولاً — لا يُعتمد أي عنصر رسميًا إلا بعد الموافقة عليه (B4).
       </p>
 
       <div class="card table-card">
@@ -41,7 +41,7 @@
           <tbody id="tableBody"></tbody>
         </table>
         <div id="emptyState" class="empty-state" style="display:none;">
-          مفيش نتائج معلّقة للمراجعة حاليًا
+          لا توجد نتائج معلّقة للمراجعة حاليًا
         </div>
       </div>
     </main>
@@ -50,6 +50,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     const TYPE_LABELS = { CHARACTER: 'شخصية', TEXT: 'نص', VIDEO_PROCESSING: 'معالجة فيديو', BRAND: 'علامة تجارية' };

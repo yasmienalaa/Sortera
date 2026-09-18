@@ -44,6 +44,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     const TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };
@@ -54,7 +55,7 @@
 
     document.getElementById('saveBtn').addEventListener('click', async () => {
       const days = parseInt(document.getElementById('fDays').value, 10);
-      if (!days || days < 1) { showToast('اكتبي عدد أيام صحيح', true); return; }
+      if (!days || days < 1) { showToast('يرجى إدخال عدد أيام صحيح', true); return; }
       try {
         await HBJ.api('/retention-policies', {
           method: 'POST',

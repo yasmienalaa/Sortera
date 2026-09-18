@@ -43,7 +43,7 @@
           <tbody id="tableBody"></tbody>
         </table>
         <div id="emptyState" class="empty-state" style="display:none;">
-          <div class="avatar-lg">🗂</div>
+          <div class="avatar-lg"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.3l1.7 2H16a1.5 1.5 0 0 1 1.5 1.5v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V6Z"/></svg></div>
           لا توجد عناصر تطابق التصفية الحالية
         </div>
       </div>
@@ -55,7 +55,7 @@
     <div style="position:absolute; top:0; left:0; height:100%; width:min(480px, 100%); background:var(--color-surface); box-shadow:-4px 0 24px rgba(0,0,0,.1); padding:32px; overflow-y:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
         <h2 style="margin:0; font-size:20px; font-weight:800;" id="addPanelTitle">إضافة عنصر</h2>
-        <button id="closeAddPanel" style="background:none; border:none; font-size:20px; color:var(--color-text-muted);">✕</button>
+        <button id="closeAddPanel" style="background:none; border:none; font-size:20px; color:var(--color-text-muted);"><svg class="icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
       </div>
 
       <div id="addFormError" class="form-error"></div>
@@ -90,6 +90,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
@@ -212,7 +213,7 @@
           <td><span class="badge ${LIFECYCLE_BADGE[item.lifecycleStatus] || 'badge-neutral'}">${LIFECYCLE_LABELS[item.lifecycleStatus] || item.lifecycleStatus}</span></td>
           <td><span class="badge ${CONF_BADGE[item.confidentialityLevel] || 'badge-neutral'}">${CONF_LABELS[item.confidentialityLevel] || item.confidentialityLevel}</span></td>
           <td>${new Date(item.createdAt).toLocaleDateString('ar-EG')}</td>
-          <td><a href="/content-item-detail.html?id=${item.id}" title="عرض">👁</a></td>
+          <td><a href="/content-item-detail.html?id=${item.id}" title="عرض"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10Z"/><circle cx="10" cy="10" r="2.3"/></svg></a></td>
         </tr>
       `).join('');
     }

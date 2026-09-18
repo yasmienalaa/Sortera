@@ -25,19 +25,19 @@
           </div>
 
           <div class="card">
-            <div class="kpi-icon">🕓</div>
+            <div class="kpi-icon"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3 2"/></svg></div>
             <div class="kpi-label">عناصر معلّقة لمراجعة AI</div>
             <div class="kpi-value" id="pendingAiReview">—</div>
           </div>
 
           <div class="card">
-            <div class="kpi-icon">📋</div>
+            <div class="kpi-icon"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="4" width="11" height="13.5" rx="1.8"/><rect x="7" y="2.5" width="6" height="3" rx="1"/><path d="M7 9.5h6M7 12.5h6M7 15.5h3.5"/></svg></div>
             <div class="kpi-label">مهام باحثين لسه مفتوحة</div>
             <div class="kpi-value" id="pendingTasks">—</div>
           </div>
 
           <div class="card" id="restrictedCard">
-            <div class="kpi-icon">⚠</div>
+            <div class="kpi-icon"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3l8 14H2L10 3Z"/><path d="M10 8.3v3.6"/><circle cx="10" cy="14.3" r=".9"/></svg></div>
             <div class="kpi-label">تنبيهات محتوى حساس يحتاج موافقة</div>
             <div class="kpi-value" id="restrictedAlerts">—</div>
           </div>
@@ -52,7 +52,7 @@
             <tbody id="recentTableBody"></tbody>
           </table>
           <div id="recentEmpty" class="empty-state" style="display:none;">
-            <div class="avatar-lg">🗂</div>
+            <div class="avatar-lg"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.3l1.7 2H16a1.5 1.5 0 0 1 1.5 1.5v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V6Z"/></svg></div>
             لا توجد إضافات حديثة بعد
           </div>
         </div>
@@ -63,6 +63,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     if (HBJ.requireAuth()) {

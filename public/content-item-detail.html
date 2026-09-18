@@ -15,6 +15,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     const LIFECYCLE_ORDER = ['RAW', 'IN_PRODUCTION', 'READY_FOR_REVIEW', 'PUBLISHED', 'ARCHIVED'];
@@ -41,7 +42,7 @@
               أُضيف: ${new Date(item.createdAt).toLocaleDateString('ar-EG')}
             </p>
             ${nextStatus
-              ? `<button class="btn btn-primary" style="width:auto;" onclick="transition('${nextStatus}')">نقل لمرحلة: ${LIFECYCLE_LABELS[nextStatus]} ←</button>`
+              ? `<button class="btn btn-primary" style="width:auto;" onclick="transition('${nextStatus}')">نقل لمرحلة: ${LIFECYCLE_LABELS[nextStatus]} <svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg></button>`
               : `<span class="badge badge-success">آخر مرحلة في دورة الحياة</span>`}
           </div>
 
@@ -53,7 +54,7 @@
             <details>
               <summary style="cursor:pointer; color:var(--color-primary); font-size:13px;">+ ربط عنصر يدويًا</summary>
               <div style="display:flex; gap:8px; margin-top:10px;">
-                <input id="relTargetId" placeholder="معرّف العنصر التاني" style="flex:1; padding:8px; border:1px solid var(--color-border); border-radius:8px;" />
+                <input id="relTargetId" placeholder="معرّف العنصر الآخر" style="flex:1; padding:8px; border:1px solid var(--color-border); border-radius:8px;" />
                 <select id="relType" style="padding:8px; border:1px solid var(--color-border); border-radius:8px;">
                   <option value="SAME_EVENT">نفس الحدث</option><option value="SAME_PERSON">نفس الشخصية</option>
                   <option value="SAME_LOCATION">نفس المكان</option><option value="MANUAL">يدوي</option>
@@ -89,7 +90,7 @@
                 <a href="/content-item-detail.html?id=${r.item.id}" style="color:var(--color-primary);">${escapeHtml(r.item.title)}</a>
                 <span class="badge badge-neutral">${RELATION_LABELS[r.relationType]}${r.confidenceScore ? ` (${Math.round(r.confidenceScore * 100)}%)` : ''}</span>
               </div>`).join('')
-          : '<span style="color:var(--color-text-muted); font-size:13px;">مفيش عناصر مرتبطة لسه</span>';
+          : '<span style="color:var(--color-text-muted); font-size:13px;">لا توجد عناصر مرتبطة حتى الآن</span>';
       } catch (err) { showToast(err.message, true); }
     }
 

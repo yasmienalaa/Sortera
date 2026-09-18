@@ -38,13 +38,14 @@
           <thead><tr><th>نوع المهمة</th><th>تاريخ الاستحقاق</th><th>الحالة</th><th></th></tr></thead>
           <tbody id="tableBody"></tbody>
         </table>
-        <div id="emptyState" class="empty-state" style="display:none;">الصقي معرّف باحث واضغطي "عرض" لتشوفي مهامه</div>
+        <div id="emptyState" class="empty-state" style="display:none;">يرجى إدخال معرّف الباحث والضغط على "عرض" لاستعراض مهامه</div>
       </div>
     </main>
   </div>
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     const STATUS_LABELS = { PENDING: 'قيد الانتظار', IN_PROGRESS: 'جاري التنفيذ', DONE: 'مكتملة' };

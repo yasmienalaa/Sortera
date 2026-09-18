@@ -17,7 +17,7 @@
         <tbody id="publicBody"></tbody>
       </table>
       <div id="emptyState" class="empty-state" style="display:none;">
-        <div class="avatar-lg">🗂</div>
+        <div class="avatar-lg"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6a1.5 1.5 0 0 1 1.5-1.5h3.3l1.7 2H16a1.5 1.5 0 0 1 1.5 1.5v6.5A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5V6Z"/></svg></div>
         لا يوجد محتوى عام متاح حاليًا
       </div>
     </div>
@@ -25,7 +25,7 @@
     <div class="card">
       <h2 class="card-title">طلب وصول لعنصر مقيّد</h2>
       <p style="color:var(--color-text-muted); font-size:13px; margin-top:-8px;">
-        لو عندك معرّف عنصر (ID) وصلك من فريق الأرشيف، اطلبي وصول له هنا — الطلب هيروح لمراجعة الفريق قبل ما تقدري تشوفيه.
+        في حال توفر معرّف عنصر (ID) تم استلامه من فريق الأرشيف، يمكن تقديم طلب وصول له هنا. سيخضع الطلب لمراجعة الفريق قبل إتاحة الوصول.
       </p>
       <div style="display:flex; gap:10px;">
         <input type="text" id="resourceIdInput" placeholder="معرّف العنصر (Content Item ID)" style="flex:1; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
@@ -37,6 +37,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/researcher-portal/js/rp-api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/researcher-portal/js/rp-shell.js"></script>
   <script>
     const TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };

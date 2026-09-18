@@ -12,7 +12,7 @@
       <div class="page-header">
         <h1 class="page-title">الشخصيات</h1>
         <div style="display:flex; gap:10px;">
-          <a href="/merge-suggestions.html" class="btn btn-secondary" style="width:auto; text-decoration:none;">↗ مراجعة التكرار</a>
+          <a href="/merge-suggestions.html" class="btn btn-secondary" style="width:auto; text-decoration:none;"><svg class="icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5H4A1.5 1.5 0 0 0 2.5 5v11A1.5 1.5 0 0 0 4 17.5h11a1.5 1.5 0 0 0 1.5-1.5v-4"/><path d="M11.5 2.5h6v6M17 3l-8 8"/></svg> مراجعة التكرار</a>
           <button class="btn btn-primary" style="width:auto;" id="addBtn">+ أضف شخصية</button>
         </div>
       </div>
@@ -26,7 +26,7 @@
           <tbody id="tableBody"></tbody>
         </table>
         <div id="emptyState" class="empty-state" style="display:none;">
-          <div class="avatar-lg">👥</div>
+          <div class="avatar-lg"><svg class="icon" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="2.6"/><circle cx="14" cy="8" r="2.2"/><path d="M2.5 16.5c.4-2.7 2.2-4.3 4.5-4.3s4.1 1.6 4.5 4.3"/><path d="M12.3 12.4c1.9.2 3.3 1.7 3.7 4.1"/></svg></div>
           لا توجد شخصيات تطابق معايير البحث
         </div>
       </div>
@@ -37,7 +37,7 @@
     <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:min(520px, 92vw); max-height:85vh; overflow-y:auto; background:var(--color-surface); border-radius:var(--radius-lg); padding:32px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
         <h2 style="margin:0; font-size:20px; font-weight:800;">أضف الشخصية</h2>
-        <button id="closeAddPanel" style="background:none; border:none; font-size:20px; color:var(--color-text-muted);">✕</button>
+        <button id="closeAddPanel" style="background:none; border:none; font-size:20px; color:var(--color-text-muted);"><svg class="icon" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
       </div>
       <div id="addFormError" class="form-error"></div>
       <form id="addForm">
@@ -54,6 +54,7 @@
   <div id="toast" class="toast"><span id="toastText"></span></div>
 
   <script src="/js/api.js"></script>
+  <script src="/js/icons.js"></script>
   <script src="/js/shell.js"></script>
   <script>
     if (HBJ.requireAuth()) { renderShell('/persons-list.html'); load(); }
