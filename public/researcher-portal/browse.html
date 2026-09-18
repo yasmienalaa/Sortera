@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تصفح الأرشيف — بوابة الباحث الخارجي</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div id="rp-nav-root"></div>
+  <main class="main" style="max-width:1000px; margin:0 auto;">
+    <div class="page-header"><h1 class="page-title">تصفح الأرشيف العام</h1></div>
+
+    <div class="card table-card" style="margin-bottom:24px;">
+      <table class="data-table">
+        <thead><tr><th>العنوان</th><th>النوع</th><th>تاريخ الإضافة</th></tr></thead>
+        <tbody id="publicBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <div class="avatar-lg">🗂</div>
+        لا يوجد محتوى عام متاح حاليًا
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">طلب وصول لعنصر مقيّد</h2>
+      <p style="color:var(--color-text-muted); font-size:13px; margin-top:-8px;">
+        لو عندك معرّف عنصر (ID) وصلك من فريق الأرشيف، اطلبي وصول له هنا — الطلب هيروح لمراجعة الفريق قبل ما تقدري تشوفيه.
+      </p>
+      <div style="display:flex; gap:10px;">
+        <input type="text" id="resourceIdInput" placeholder="معرّف العنصر (Content Item ID)" style="flex:1; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        <button class="btn btn-primary" style="width:auto;" id="requestBtn">طلب وصول</button>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/researcher-portal/js/rp-api.js"></script>
+  <script src="/researcher-portal/js/rp-shell.js"></script>
+  <script>
+    const TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };
+
+    if (RP.requireAuth()) {
+      renderRpNav('/researcher-portal/browse.html');
+      loadPublic();
+    }
+
+    async function loadPublic() {
+      try {
+        const items = await RP.api('/researcher-portal/content-items');
+        const tbody = document.getElementById('publicBody');
+        if (items.length === 0) {
+          document.getElementById('emptyState').style.display = 'block';
+          return;
+        }
+        tbody.innerHTML = items.map((i) => `
+          <tr>
+            <td><a href="/researcher-portal/item.html?id=${i.id}" style="color:var(--color-primary);">${escapeHtmlRp(i.title)}</a></td>
+            <td><span class="badge badge-neutral">${TYPE_LABELS[i.contentType] || i.contentType}</span></td>
+            <td>${new Date(i.createdAt).toLocaleDateString('ar-EG')}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    document.getElementById('requestBtn').addEventListener('click', async () => {
+      const resourceId = document.getElementById('resourceIdInput').value.trim();
+      if (!resourceId) return;
+      try {
+        await RP.api('/researcher-portal/access-requests', { method: 'POST', body: JSON.stringify({ resourceId }) });
+        showToast('تم إرسال طلب الوصول — تابعي حالته من صفحة "طلباتي"');
+        document.getElementById('resourceIdInput').value = '';
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    });
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

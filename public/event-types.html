@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أنواع الأحداث — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header"><h1 class="page-title">أنواع الأحداث</h1></div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <h2 class="card-title">إضافة نوع جديد</h2>
+        <div style="display:flex; gap:10px; align-items:end;">
+          <div class="field" style="margin:0; flex:1;"><label>الاسم</label>
+            <input id="fName" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0; flex:1;"><label>النوع الرئيسي (اختياري)</label>
+            <select id="fParent" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;"><option value="">— بدون —</option></select></div>
+          <button class="btn btn-primary" style="width:auto; height:42px;" id="createBtn">إضافة</button>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <table class="data-table">
+          <thead><tr><th>الاسم</th><th>النوع الرئيسي</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;"><div class="avatar-lg">📖</div>لا توجد أنواع أحداث بعد</div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) { renderShell('/event-types.html'); load(); }
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+      const name = document.getElementById('fName').value.trim();
+      if (!name) return;
+      try {
+        await HBJ.api('/event-types', { method: 'POST', body: JSON.stringify({ name, parentId: document.getElementById('fParent').value || undefined }) });
+        document.getElementById('fName').value = '';
+        load();
+      } catch (err) { showToast(err.message, true); }
+    });
+
+    async function load() {
+      try {
+        const types = await HBJ.api('/event-types');
+        const byId = Object.fromEntries(types.map((t) => [t.id, t.name]));
+
+        const parentSelect = document.getElementById('fParent');
+        parentSelect.innerHTML = '<option value="">— بدون —</option>' + types.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+
+        const tbody = document.getElementById('tableBody');
+        if (types.length === 0) { document.getElementById('emptyState').style.display = 'block'; tbody.innerHTML=''; return; }
+        document.getElementById('emptyState').style.display = 'none';
+        tbody.innerHTML = types.map((t) => `
+          <tr><td>${escapeHtml(t.name)}</td><td>${t.parentId ? escapeHtml(byId[t.parentId] || '—') : '—'}</td></tr>
+        `).join('');
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

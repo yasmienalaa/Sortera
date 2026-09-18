@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المشاركة بين العملاء — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header"><h1 class="page-title">مشاركة المحتوى بين العملاء</h1></div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <h2 class="card-title">مشاركة عنصر مع عميل آخر</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end;">
+          <div class="field" style="margin:0;"><label>معرّف العنصر</label>
+            <input id="fItem" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>معرّف العميل المستهدف (tenant)</label>
+            <input id="fTenant" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>مستوى الصلاحية</label>
+            <select id="fLevel" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;">
+              <option value="VIEW">عرض فقط</option><option value="EDIT">عرض وتعديل</option>
+            </select></div>
+          <button class="btn btn-primary" style="width:auto; height:42px;" id="shareBtn">مشاركة</button>
+        </div>
+        <p style="font-size:12px; color:var(--color-text-muted); margin-top:10px;">
+          ملاحظة: المحتوى المصنّف "مقيّد" (RESTRICTED) ممنوع مشاركته عبر العملاء إطلاقًا — القيد ده مفروض من السيرفر نفسه.
+        </p>
+      </div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;">
+        <div class="card table-card">
+          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">شاركناه إحنا</h2></div>
+          <table class="data-table">
+            <thead><tr><th>العنصر</th><th>مع عميل</th><th>الصلاحية</th><th></th></tr></thead>
+            <tbody id="outgoingBody"></tbody>
+          </table>
+        </div>
+        <div class="card table-card">
+          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">اتشارك معانا</h2></div>
+          <table class="data-table">
+            <thead><tr><th>معرّف العنصر</th><th>الصلاحية</th></tr></thead>
+            <tbody id="incomingBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) { renderShell('/settings.html'); loadAll(); }
+
+    document.getElementById('shareBtn').addEventListener('click', async () => {
+      try {
+        await HBJ.api('/shared-resources', {
+          method: 'POST',
+          body: JSON.stringify({
+            contentItemId: document.getElementById('fItem').value.trim(),
+            targetTenantId: document.getElementById('fTenant').value.trim(),
+            permissionLevel: document.getElementById('fLevel').value,
+          }),
+        });
+        showToast('تمت المشاركة');
+        loadAll();
+      } catch (err) { showToast(err.message, true); }
+    });
+
+    async function loadAll() {
+      try {
+        const [outgoing, incoming] = await Promise.all([
+          HBJ.api('/shared-resources/outgoing'),
+          HBJ.api('/shared-resources/incoming'),
+        ]);
+        document.getElementById('outgoingBody').innerHTML = outgoing.map((s) => `
+          <tr id="share-${s.id}">
+            <td>${escapeHtml(s.contentItem?.title || s.contentItemId.slice(0,8))}</td>
+            <td><code style="font-size:11px;">${s.tenantId.slice(0,8)}…</code></td>
+            <td><span class="badge badge-neutral">${s.permissionLevel === 'VIEW' ? 'عرض فقط' : 'عرض وتعديل'}</span></td>
+            <td><a href="#" onclick="revoke('${s.id}'); return false;" style="color:var(--color-danger-text);">إلغاء</a></td>
+          </tr>
+        `).join('') || '<tr><td colspan="4" style="color:var(--color-text-muted);">لا توجد مشاركات</td></tr>';
+
+        document.getElementById('incomingBody').innerHTML = incoming.map((s) => `
+          <tr><td><code style="font-size:11px;">${s.contentItemId.slice(0,8)}…</code></td>
+              <td><span class="badge badge-neutral">${s.permissionLevel === 'VIEW' ? 'عرض فقط' : 'عرض وتعديل'}</span></td></tr>
+        `).join('') || '<tr><td colspan="2" style="color:var(--color-text-muted);">لا يوجد محتوى مشارك معانا</td></tr>';
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    async function revoke(id) {
+      try {
+        await HBJ.api(`/shared-resources/${id}`, { method: 'DELETE' });
+        document.getElementById(`share-${id}`)?.remove();
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

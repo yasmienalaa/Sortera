@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>طلباتي — بوابة الباحث الخارجي</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div id="rp-nav-root"></div>
+  <main class="main" style="max-width:1000px; margin:0 auto;">
+    <div class="page-header"><h1 class="page-title">طلبات الوصول بتاعتي</h1></div>
+
+    <div class="card table-card">
+      <table class="data-table">
+        <thead><tr><th>معرّف العنصر</th><th>الحالة</th><th>تاريخ الطلب</th><th>صالح لغاية</th><th></th></tr></thead>
+        <tbody id="requestsBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <div class="avatar-lg">📋</div>
+        لسه معملتيش أي طلب وصول
+      </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/researcher-portal/js/rp-api.js"></script>
+  <script src="/researcher-portal/js/rp-shell.js"></script>
+  <script>
+    const STATUS_LABELS = { PENDING: 'قيد المراجعة', APPROVED: 'تمت الموافقة', REJECTED: 'مرفوض' };
+    const STATUS_BADGE = { PENDING: 'badge-warning', APPROVED: 'badge-success', REJECTED: 'badge-danger' };
+
+    if (RP.requireAuth()) {
+      renderRpNav('/researcher-portal/my-requests.html');
+      load();
+    }
+
+    async function load() {
+      try {
+        const requests = await RP.api('/researcher-portal/access-requests');
+        const tbody = document.getElementById('requestsBody');
+        if (requests.length === 0) { document.getElementById('emptyState').style.display = 'block'; return; }
+        tbody.innerHTML = requests.map((r) => `
+          <tr>
+            <td><code style="font-size:12px;">${r.resourceId.slice(0, 8)}…</code></td>
+            <td><span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABELS[r.status]}</span></td>
+            <td>${new Date(r.createdAt).toLocaleDateString('ar-EG')}</td>
+            <td>${r.expiryDate ? new Date(r.expiryDate).toLocaleDateString('ar-EG') : '—'}</td>
+            <td>${r.status === 'APPROVED' ? `<a href="/researcher-portal/item.html?id=${r.resourceId}" style="color:var(--color-primary);">عرض</a>` : ''}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة التحكم — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">لوحة التحكم</h1>
+      </div>
+
+      <div id="loadingState" class="empty-state"><div class="spinner" style="border-top-color:var(--color-primary); border-color:var(--color-border); margin:0 auto;"></div></div>
+
+      <div id="dashboardContent" style="display:none;">
+        <div class="grid grid-dashboard-top" style="margin-bottom:20px;">
+          <div class="card">
+            <h2 class="card-title">إجمالي العناصر حسب النوع</h2>
+            <div id="byTypeGrid" class="grid" style="grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));"></div>
+          </div>
+
+          <div class="card">
+            <div class="kpi-icon">🕓</div>
+            <div class="kpi-label">عناصر معلّقة لمراجعة AI</div>
+            <div class="kpi-value" id="pendingAiReview">—</div>
+          </div>
+
+          <div class="card" id="restrictedCard">
+            <div class="kpi-icon">⚠</div>
+            <div class="kpi-label">تنبيهات محتوى حساس يحتاج موافقة</div>
+            <div class="kpi-value" id="restrictedAlerts">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">آخر الإضافات</h2>
+          <table class="data-table" id="recentTable">
+            <thead>
+              <tr><th>العنوان</th><th>النوع</th><th>تاريخ الإضافة</th></tr>
+            </thead>
+            <tbody id="recentTableBody"></tbody>
+          </table>
+          <div id="recentEmpty" class="empty-state" style="display:none;">
+            <div class="avatar-lg">🗂</div>
+            لا توجد إضافات حديثة بعد
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) {
+      renderShell('/dashboard.html');
+      loadDashboard();
+    }
+
+    const CONTENT_TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };
+
+    async function loadDashboard() {
+      try {
+        const data = await HBJ.api('/dashboard');
+        renderDashboard(data);
+      } catch (err) {
+        showToast(err.message, true);
+      } finally {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('dashboardContent').style.display = 'block';
+      }
+    }
+
+    function renderDashboard(data) {
+      const byTypeGrid = document.getElementById('byTypeGrid');
+      const byType = data.totalByContentType || {};
+      const entries = Object.entries(byType);
+      byTypeGrid.innerHTML = entries.length
+        ? entries.map(([type, count]) => `
+            <div>
+              <div class="kpi-value" style="font-size:22px;">${count}</div>
+              <div class="kpi-label">${CONTENT_TYPE_LABELS[type] || type}</div>
+            </div>
+          `).join('')
+        : '<span class="kpi-label">لا يوجد محتوى بعد</span>';
+
+      document.getElementById('pendingAiReview').textContent = data.pendingAiReview ?? 0;
+      document.getElementById('restrictedAlerts').textContent = data.restrictedAlerts ?? 0;
+
+      const restrictedCard = document.getElementById('restrictedCard');
+      if (!data.restrictedAlerts) {
+        restrictedCard.classList.remove('alert-card');
+      } else {
+        restrictedCard.classList.add('alert-card');
+      }
+
+      const recent = data.recentAdditions || [];
+      const tbody = document.getElementById('recentTableBody');
+      if (recent.length === 0) {
+        document.getElementById('recentTable').style.display = 'none';
+        document.getElementById('recentEmpty').style.display = 'block';
+      } else {
+        tbody.innerHTML = recent.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.title)}</td>
+            <td><span class="badge badge-neutral">${CONTENT_TYPE_LABELS[item.contentType] || item.contentType}</span></td>
+            <td>${new Date(item.createdAt).toLocaleDateString('ar-EG')}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

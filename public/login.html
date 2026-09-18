@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الدخول — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-icon">👤</div>
+      <h1 class="auth-title">تسجيل الدخول إلى حسابك</h1>
+      <p class="auth-subtitle">أدخل بياناتك لتسجيل الدخول</p>
+
+      <div id="formError" class="form-error"></div>
+
+      <form id="loginForm">
+        <div class="field">
+          <label for="email">البريد الإلكتروني</label>
+          <div class="input-wrap">
+            <input type="email" id="email" name="email" required autocomplete="username" />
+            <span class="icon-suffix">✉</span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">كلمة المرور</label>
+          <div class="input-wrap">
+            <input type="password" id="password" name="password" required autocomplete="current-password" />
+            <span class="icon-suffix">🔒</span>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span id="submitLabel">تسجيل الدخول</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const form = document.getElementById('loginForm');
+    const errorBox = document.getElementById('formError');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitLabel = document.getElementById('submitLabel');
+
+    // Already have a session? skip straight to the dashboard.
+    if (HBJ.getAccessToken()) location.href = '/dashboard.html';
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.remove('visible');
+      submitBtn.disabled = true;
+      submitLabel.innerHTML = '<span class="spinner"></span>';
+
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const deviceToken = HBJ.getDeviceToken();
+
+      try {
+        const result = await HBJ.api('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify(deviceToken ? { email, password, deviceToken } : { email, password }),
+        });
+
+        if (result.requiresTwoFactor) {
+          // Hand off to the 2FA screen via sessionStorage — the tempToken
+          // is short-lived (10 min) and single-purpose, no need to persist
+          // it in localStorage.
+          sessionStorage.setItem('hbj_temp_token', result.tempToken);
+          sessionStorage.setItem('hbj_2fa_setup_required', result.twoFactorSetupRequired ? '1' : '');
+          location.href = '/two-factor.html';
+          return;
+        }
+
+        HBJ.setAccessToken(result.accessToken);
+        HBJ.setUser(result.user);
+        location.href = '/dashboard.html';
+      } catch (err) {
+        errorBox.textContent = err.message === 'Unauthorized' || /invalid/i.test(err.message)
+          ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة'
+          : err.message;
+        errorBox.classList.add('visible');
+        submitBtn.disabled = false;
+        submitLabel.textContent = 'تسجيل الدخول';
+      }
+    });
+  </script>
+</body>
+</html>

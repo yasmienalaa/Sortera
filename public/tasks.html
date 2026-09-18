@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مهام الباحثين — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">مهام الباحثين</h1>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <h2 class="card-title">مهمة جديدة</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:end;">
+          <div class="field" style="margin:0;"><label>معرّف الباحث</label><input id="fResearcher" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>معرّف العنصر</label><input id="fContentItem" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>نوع المهمة</label><input id="fType" placeholder="ai_review" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>تاريخ الاستحقاق</label><input id="fDue" type="date" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <button class="btn btn-primary" style="width:auto; height:42px;" id="createBtn">إضافة</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:20px;">
+        <div style="display:flex; gap:10px; align-items:end;">
+          <div class="field" style="margin:0; flex:1;"><label>عرض مهام باحث (معرّف)</label>
+            <input id="filterResearcher" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" placeholder="الصقي معرّف الباحث هنا" />
+          </div>
+          <button class="btn btn-secondary" style="width:auto; height:42px;" id="loadBtn">عرض</button>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <table class="data-table">
+          <thead><tr><th>نوع المهمة</th><th>تاريخ الاستحقاق</th><th>الحالة</th><th></th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;"><div class="avatar-lg">📋</div>الصقي معرّف باحث واضغطي "عرض" لتشوفي مهامه</div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    const STATUS_LABELS = { PENDING: 'قيد الانتظار', IN_PROGRESS: 'جاري التنفيذ', DONE: 'مكتملة' };
+    const STATUS_BADGE = { PENDING: 'badge-warning', IN_PROGRESS: 'badge-neutral', DONE: 'badge-success' };
+
+    if (HBJ.requireAuth()) renderShell('/tasks.html');
+
+    document.getElementById('createBtn').addEventListener('click', async () => {
+      try {
+        await HBJ.api('/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            researcherId: document.getElementById('fResearcher').value.trim(),
+            contentItemId: document.getElementById('fContentItem').value.trim(),
+            taskType: document.getElementById('fType').value.trim() || 'general',
+            dueDate: document.getElementById('fDue').value || undefined,
+          }),
+        });
+        showToast('تمت إضافة المهمة');
+      } catch (err) { showToast(err.message, true); }
+    });
+
+    document.getElementById('loadBtn').addEventListener('click', load);
+
+    async function load() {
+      const researcherId = document.getElementById('filterResearcher').value.trim();
+      if (!researcherId) return;
+      try {
+        const tasks = await HBJ.api(`/tasks?researcherId=${encodeURIComponent(researcherId)}`);
+        const tbody = document.getElementById('tableBody');
+        if (tasks.length === 0) { document.getElementById('emptyState').style.display = 'block'; tbody.innerHTML=''; return; }
+        document.getElementById('emptyState').style.display = 'none';
+        tbody.innerHTML = tasks.map((t) => `
+          <tr id="task-${t.id}">
+            <td>${escapeHtml(t.taskType)}</td>
+            <td>${t.dueDate ? new Date(t.dueDate).toLocaleDateString('ar-EG') : '—'}</td>
+            <td><span class="badge ${STATUS_BADGE[t.status]}">${STATUS_LABELS[t.status]}</span></td>
+            <td>
+              ${t.status !== 'DONE' ? `<button class="btn btn-secondary" style="width:auto; padding:4px 10px;" onclick="markDone('${t.id}')">تمّت</button>` : ''}
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    async function markDone(id) {
+      try {
+        await HBJ.api(`/tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'DONE' }) });
+        load();
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

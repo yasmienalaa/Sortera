@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الملف الشخصي — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">الملف الشخصي</h1>
+      </div>
+
+      <div class="card" style="margin-bottom:24px; display:flex; align-items:center; gap:16px;">
+        <div class="sidebar-avatar" style="width:56px; height:56px; font-size:20px;" id="avatarInitial"></div>
+        <div>
+          <div style="font-weight:700; font-size:16px;" id="userName"></div>
+          <div style="color:var(--color-text-muted); font-size:13px;" id="userEmail"></div>
+          <span class="badge badge-neutral" id="userRole" style="margin-top:6px; display:inline-block;"></span>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-toolbar">
+          <h2 class="card-title" style="margin:0;">الجلسات النشطة</h2>
+        </div>
+        <p style="padding:0 24px 16px; margin:0; font-size:13px; color:var(--color-text-muted);">
+          لو في جهاز مش عارفاه أو حاسة إن حسابك اتخترق، اعملي "إنهاء" للجلسة دي — هتتقفل فورًا حتى لو التوكن بتاعها لسه صالح (A12).
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>الجهاز</th>
+              <th>عنوان IP</th>
+              <th>آخر نشاط</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sessionsBody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) {
+      renderShell('/profile.html');
+      renderUser();
+      loadSessions();
+    }
+
+    function renderUser() {
+      const user = HBJ.getUser() || {};
+      document.getElementById('avatarInitial').textContent = (user.fullName || '?').charAt(0);
+      document.getElementById('userName').textContent = user.fullName || '';
+      document.getElementById('userEmail').textContent = user.email || '';
+      document.getElementById('userRole').textContent = roleLabel(user.role);
+    }
+
+    async function loadSessions() {
+      try {
+        const sessions = await HBJ.api('/auth/sessions');
+        const currentId = HBJ.getCurrentSessionId();
+        const tbody = document.getElementById('sessionsBody');
+        tbody.innerHTML = sessions.map((s) => `
+          <tr id="session-${s.id}">
+            <td>
+              ${escapeHtml(s.deviceInfo || 'جهاز غير معروف')}
+              ${s.id === currentId ? '<span class="badge badge-success" style="margin-inline-start:8px;">هذا الجهاز</span>' : ''}
+            </td>
+            <td style="direction:ltr; text-align:right;">${escapeHtml(s.ip || '—')}</td>
+            <td>${new Date(s.lastActive).toLocaleString('ar-EG')}</td>
+            <td>
+              <button class="btn btn-secondary" style="width:auto; padding:6px 14px; color:var(--color-danger-text);"
+                onclick="revoke('${s.id}', ${s.id === currentId})">
+                إنهاء الجلسة
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    async function revoke(id, isCurrent) {
+      if (isCurrent && !confirm('دي جلستك الحالية — إنهاؤها هيسجّل خروجك فورًا. متأكدة؟')) return;
+      try {
+        await HBJ.api(`/auth/sessions/${id}`, { method: 'DELETE' });
+        if (isCurrent) { HBJ.logout(); return; }
+        document.getElementById(`session-${id}`)?.remove();
+        showToast('تم إنهاء الجلسة');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function roleLabel(role) {
+      const map = { OWNER: 'مالك', SUPER_ADMIN: 'مدير عام', ADMIN: 'مدير', MEDIA_ADMIN: 'مدير وسائط', RESEARCHER: 'باحث' };
+      return map[role] || role || '';
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

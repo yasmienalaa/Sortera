@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>المصادقة الثنائية — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-icon">👤</div>
+      <h1 class="auth-title">المصادقة الثنائية</h1>
+      <p class="auth-subtitle">أدخل رمز المصادقة من Google Authenticator أو أي تطبيق مصادقة آخر</p>
+
+      <div id="setupBox" style="display:none; text-align:right; background:var(--color-bg); border-radius:var(--radius-md); padding:16px; margin-bottom:20px; font-size:13px;">
+        <p style="margin:0 0 8px; font-weight:700;">أول مرة؟ فعّلي المصادقة الثنائية:</p>
+        <p style="margin:0 0 8px; color:var(--color-text-muted);">افتحي تطبيق Google Authenticator (أو أي تطبيق TOTP) واضيفي حساب يدويًا بالمفتاح ده:</p>
+        <code id="secretCode" style="display:block; direction:ltr; text-align:center; background:var(--color-surface); border:1px solid var(--color-border); border-radius:6px; padding:10px; font-size:15px; letter-spacing:2px;"></code>
+      </div>
+
+      <div id="formError" class="form-error"></div>
+
+      <form id="verifyForm">
+        <div class="field">
+          <label for="code">رمز التحقق</label>
+          <div class="input-wrap">
+            <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                   placeholder="أدخل رمز التحقق المكون من 6 أرقام" required style="text-align:center; letter-spacing:4px;" />
+            <span class="icon-suffix">🔒</span>
+          </div>
+        </div>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="rememberDevice" />
+          تذكرني على هذا الجهاز لمدة 30 يوم
+        </label>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <span id="submitLabel">تحقق</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    const tempToken = sessionStorage.getItem('hbj_temp_token');
+    const setupRequired = sessionStorage.getItem('hbj_2fa_setup_required') === '1';
+    if (!tempToken) location.href = '/login.html';
+
+    async function apiWithTempToken(path, body) {
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tempToken}` },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Request failed');
+      return data;
+    }
+
+    (async () => {
+      if (setupRequired) {
+        try {
+          const { secret } = await apiWithTempToken('/auth/2fa/setup');
+          document.getElementById('secretCode').textContent = secret;
+          document.getElementById('setupBox').style.display = 'block';
+        } catch (err) {
+          document.getElementById('formError').textContent = err.message;
+          document.getElementById('formError').classList.add('visible');
+        }
+      }
+    })();
+
+    const form = document.getElementById('verifyForm');
+    const errorBox = document.getElementById('formError');
+    const submitBtn = document.getElementById('submitBtn');
+    const submitLabel = document.getElementById('submitLabel');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.remove('visible');
+      submitBtn.disabled = true;
+      submitLabel.innerHTML = '<span class="spinner"></span>';
+
+      try {
+        const code = document.getElementById('code').value.trim();
+        const rememberDevice = document.getElementById('rememberDevice').checked;
+        const result = await apiWithTempToken('/auth/2fa/verify', { code, rememberDevice });
+
+        HBJ.setAccessToken(result.accessToken);
+        HBJ.setUser(result.user);
+        HBJ.setDeviceToken(result.deviceToken);
+        sessionStorage.removeItem('hbj_temp_token');
+        sessionStorage.removeItem('hbj_2fa_setup_required');
+        location.href = '/dashboard.html';
+      } catch (err) {
+        errorBox.textContent = /invalid/i.test(err.message) ? 'رمز التحقق غير صحيح' : err.message;
+        errorBox.classList.add('visible');
+        submitBtn.disabled = false;
+        submitLabel.textContent = 'تحقق';
+      }
+    });
+  </script>
+</body>
+</html>

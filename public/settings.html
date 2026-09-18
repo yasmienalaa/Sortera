@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الإعدادات — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header"><h1 class="page-title">الإعدادات</h1></div>
+
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));">
+        <a class="card" href="/retention-policies.html" style="display:block; text-decoration:none; color:inherit;">
+          <div class="kpi-icon">🗄</div>
+          <h2 class="card-title">سياسات الاحتفاظ</h2>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">تحديد مدة احتفاظ كل نوع محتوى والإجراء عند الانتهاء</p>
+        </a>
+        <a class="card" href="/sharing.html" style="display:block; text-decoration:none; color:inherit;">
+          <div class="kpi-icon">🔗</div>
+          <h2 class="card-title">المشاركة بين العملاء</h2>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مشاركة محتوى مع tenant تاني بصلاحية محددة</p>
+        </a>
+        <a class="card" href="/access-requests-admin.html" style="display:block; text-decoration:none; color:inherit;">
+          <div class="kpi-icon">🔎</div>
+          <h2 class="card-title">طلبات الباحثين الخارجيين</h2>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">مراجعة والموافقة على طلبات الوصول من بوابة الباحث الخارجي</p>
+        </a>
+        <a class="card" href="/event-types.html" style="display:block; text-decoration:none; color:inherit;">
+          <div class="kpi-icon">📖</div>
+          <h2 class="card-title">أنواع الأحداث</h2>
+          <p style="color:var(--color-text-muted); font-size:13px; margin:0;">قائمة أنواع الأحداث المضبوطة (هيكلية)</p>
+        </a>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) renderShell('/settings.html');
+  </script>
+</body>
+</html>

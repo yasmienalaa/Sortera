@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سياسات الاحتفاظ — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header"><h1 class="page-title">سياسات الاحتفاظ بالمحتوى</h1></div>
+      <p style="color:var(--color-text-muted); margin-top:-16px; margin-bottom:24px; font-size:14px;">
+        كل نوع محتوى ياخد مدة احتفاظ محسوبة تلقائيًا وقت إنشائه — تغيير السياسة هنا مايأثرش على عناصر موجودة بالفعل (C3).
+      </p>
+
+      <div class="card" style="margin-bottom:20px;">
+        <h2 class="card-title">إضافة / تعديل سياسة</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end;">
+          <div class="field" style="margin:0;"><label>نوع المحتوى</label>
+            <select id="fType" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;">
+              <option value="VIDEO">فيديو</option><option value="IMAGE">صورة</option>
+              <option value="DOCUMENT">مستند</option><option value="AUDIO">صوتي</option>
+            </select></div>
+          <div class="field" style="margin:0;"><label>مدة الاحتفاظ (أيام)</label>
+            <input id="fDays" type="number" min="1" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;" /></div>
+          <div class="field" style="margin:0;"><label>الإجراء عند الانتهاء</label>
+            <select id="fAction" style="width:100%; padding:10px; border:1px solid var(--color-border); border-radius:8px;">
+              <option value="ARCHIVE">أرشفة</option><option value="DELETE">حذف</option><option value="NOTIFY_ONLY">تنبيه فقط</option>
+            </select></div>
+          <button class="btn btn-primary" style="width:auto; height:42px;" id="saveBtn">حفظ</button>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <table class="data-table">
+          <thead><tr><th>نوع المحتوى</th><th>مدة الاحتفاظ</th><th>الإجراء</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;"><div class="avatar-lg">🗄</div>لا توجد سياسات احتفاظ بعد — كل المحتوى بيفضل بدون تاريخ انتهاء</div>
+      </div>
+    </main>
+  </div>
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    const TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };
+    const ACTION_LABELS = { ARCHIVE: 'أرشفة', DELETE: 'حذف', NOTIFY_ONLY: 'تنبيه فقط' };
+    const ACTION_BADGE = { ARCHIVE: 'badge-neutral', DELETE: 'badge-danger', NOTIFY_ONLY: 'badge-warning' };
+
+    if (HBJ.requireAuth()) { renderShell('/settings.html'); load(); }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      const days = parseInt(document.getElementById('fDays').value, 10);
+      if (!days || days < 1) { showToast('اكتبي عدد أيام صحيح', true); return; }
+      try {
+        await HBJ.api('/retention-policies', {
+          method: 'POST',
+          body: JSON.stringify({
+            contentType: document.getElementById('fType').value,
+            retentionPeriodDays: days,
+            actionOnExpiry: document.getElementById('fAction').value,
+          }),
+        });
+        showToast('تم الحفظ');
+        load();
+      } catch (err) { showToast(err.message, true); }
+    });
+
+    async function load() {
+      try {
+        const policies = await HBJ.api('/retention-policies');
+        const tbody = document.getElementById('tableBody');
+        if (policies.length === 0) { document.getElementById('emptyState').style.display = 'block'; tbody.innerHTML=''; return; }
+        document.getElementById('emptyState').style.display = 'none';
+        tbody.innerHTML = policies.map((p) => `
+          <tr>
+            <td>${TYPE_LABELS[p.contentType] || p.contentType}</td>
+            <td>${p.retentionPeriodDays} يوم</td>
+            <td><span class="badge ${ACTION_BADGE[p.actionOnExpiry]}">${ACTION_LABELS[p.actionOnExpiry]}</span></td>
+          </tr>
+        `).join('');
+      } catch (err) { showToast(err.message, true); }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

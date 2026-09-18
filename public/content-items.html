@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>قائمة المحتوى — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title" id="pageTitle">المحتوى</h1>
+        <button class="btn btn-primary" id="addBtn" style="width:auto;">+ إضافة عنصر</button>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-toolbar">
+          <div style="display:flex; gap:10px;">
+            <select id="lifecycleFilter" class="btn btn-secondary" style="width:auto;">
+              <option value="">كل الحالات</option>
+              <option value="RAW">خام</option>
+              <option value="IN_PRODUCTION">قيد الإنتاج</option>
+              <option value="READY_FOR_REVIEW">جاهز للمراجعة</option>
+              <option value="PUBLISHED">منشور</option>
+              <option value="ARCHIVED">مؤرشف</option>
+            </select>
+          </div>
+          <input type="search" id="searchBox" placeholder="بحث..." class="btn btn-secondary" style="width:220px; text-align:right;" />
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>العنوان</th>
+              <th>الحالة</th>
+              <th>مستوى السرية</th>
+              <th>تاريخ الإضافة</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;">
+          <div class="avatar-lg">🗂</div>
+          لا توجد عناصر تطابق التصفية الحالية
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const contentType = params.get('type') || '';
+    const TYPE_LABELS = { VIDEO: 'الفيديوهات', IMAGE: 'الصور', DOCUMENT: 'المستندات', AUDIO: 'الملفات الصوتية' };
+    const LIFECYCLE_LABELS = { RAW: 'خام', IN_PRODUCTION: 'قيد الإنتاج', READY_FOR_REVIEW: 'جاهز للمراجعة', PUBLISHED: 'منشور', ARCHIVED: 'مؤرشف' };
+    const LIFECYCLE_BADGE = { RAW: 'badge-neutral', IN_PRODUCTION: 'badge-warning', READY_FOR_REVIEW: 'badge-warning', PUBLISHED: 'badge-success', ARCHIVED: 'badge-neutral' };
+    const CONF_LABELS = { PUBLIC: 'عام', INTERNAL: 'داخلي', CONFIDENTIAL: 'سري', RESTRICTED: 'مقيّد' };
+    const CONF_BADGE = { PUBLIC: 'badge-success', INTERNAL: 'badge-neutral', CONFIDENTIAL: 'badge-warning', RESTRICTED: 'badge-danger' };
+
+    if (HBJ.requireAuth()) {
+      renderShell(contentType ? `/content-items.html?type=${contentType}` : '/content-items.html');
+      document.getElementById('pageTitle').textContent = TYPE_LABELS[contentType] || 'كل المحتوى';
+      load();
+    }
+
+    document.getElementById('lifecycleFilter').addEventListener('change', load);
+    document.getElementById('searchBox').addEventListener('input', debounce(load, 300));
+    document.getElementById('addBtn').addEventListener('click', () => {
+      showToast('نموذج الإضافة هيتبنى لاحقًا — الـ API (POST /content-items) شغال ومختبر بالفعل.');
+    });
+
+    async function load() {
+      try {
+        const qs = new URLSearchParams();
+        if (contentType) qs.set('contentType', contentType);
+        const items = await HBJ.api(`/content-items?${qs.toString()}`);
+
+        const lifecycleFilter = document.getElementById('lifecycleFilter').value;
+        const search = document.getElementById('searchBox').value.trim().toLowerCase();
+        const filtered = items.filter((i) =>
+          (!lifecycleFilter || i.lifecycleStatus === lifecycleFilter) &&
+          (!search || i.title.toLowerCase().includes(search))
+        );
+
+        renderTable(filtered);
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById('tableBody');
+      const empty = document.getElementById('emptyState');
+      if (items.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+      tbody.innerHTML = items.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.title)}</td>
+          <td><span class="badge ${LIFECYCLE_BADGE[item.lifecycleStatus] || 'badge-neutral'}">${LIFECYCLE_LABELS[item.lifecycleStatus] || item.lifecycleStatus}</span></td>
+          <td><span class="badge ${CONF_BADGE[item.confidentialityLevel] || 'badge-neutral'}">${CONF_LABELS[item.confidentialityLevel] || item.confidentialityLevel}</span></td>
+          <td>${new Date(item.createdAt).toLocaleDateString('ar-EG')}</td>
+          <td><a href="#" onclick="viewItem('${item.id}'); return false;" title="عرض">👁</a></td>
+        </tr>
+      `).join('');
+    }
+
+    async function viewItem(id) {
+      try {
+        const item = await HBJ.api(`/content-items/${id}`);
+        alert(`${item.title}\nالحالة: ${LIFECYCLE_LABELS[item.lifecycleStatus]}\nالسرية: ${CONF_LABELS[item.confidentialityLevel]}`);
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function debounce(fn, ms) {
+      let t;
+      return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

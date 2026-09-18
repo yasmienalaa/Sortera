@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مراجعة الذكاء الاصطناعي — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">مراجعة نتائج الذكاء الاصطناعي</h1>
+      </div>
+      <p style="color:var(--color-text-muted); margin-top:-16px; margin-bottom:24px; font-size:14px;">
+        كل نتيجة من أدوات الـ AI الثلاث (الشخصيات، النص، معالجة الفيديو) بتوصل هنا كـ"معلّقة" أولاً — مفيش حاجة بتتعتمد رسميًا إلا بعد موافقتك (B4).
+      </p>
+
+      <div class="card table-card">
+        <div class="table-toolbar">
+          <select id="typeFilter" class="btn btn-secondary" style="width:auto;">
+            <option value="">كل الأنواع</option>
+            <option value="CHARACTER">شخصيات</option>
+            <option value="TEXT">نص المقطع</option>
+            <option value="VIDEO_PROCESSING">معالجة الفيديو</option>
+            <option value="BRAND">علامات تجارية</option>
+          </select>
+        </div>
+
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>النوع</th>
+              <th>القيمة المقترحة</th>
+              <th>نسبة الثقة</th>
+              <th>تاريخ الإنشاء</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;">
+          <div class="avatar-lg">✦</div>
+          مفيش نتائج معلّقة للمراجعة حاليًا
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    const TYPE_LABELS = { CHARACTER: 'شخصية', TEXT: 'نص', VIDEO_PROCESSING: 'معالجة فيديو', BRAND: 'علامة تجارية' };
+
+    if (HBJ.requireAuth()) {
+      renderShell('/ai-predictions.html');
+      const presetType = new URLSearchParams(location.search).get('type');
+      if (presetType) document.getElementById('typeFilter').value = presetType;
+      load();
+    }
+    document.getElementById('typeFilter').addEventListener('change', load);
+
+    async function load() {
+      try {
+        const predictions = await HBJ.api('/ai-predictions/pending');
+        const typeFilter = document.getElementById('typeFilter').value;
+        const filtered = typeFilter ? predictions.filter((p) => p.predictionType === typeFilter) : predictions;
+        renderTable(filtered);
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById('tableBody');
+      const empty = document.getElementById('emptyState');
+      if (items.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+
+      tbody.innerHTML = items.map((p) => `
+        <tr id="row-${p.id}">
+          <td><span class="badge badge-neutral">${TYPE_LABELS[p.predictionType] || p.predictionType}</span></td>
+          <td style="max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(JSON.stringify(p.predictedValue))}</td>
+          <td>${Math.round(p.confidenceScore * 100)}%</td>
+          <td>${new Date(p.createdAt).toLocaleDateString('ar-EG')}</td>
+          <td style="display:flex; gap:8px;">
+            <button class="btn btn-primary" style="width:auto; padding:6px 14px;" onclick="decide('${p.id}','approve')">اعتماد</button>
+            <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" onclick="decide('${p.id}','reject')">رفض</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function decide(id, action) {
+      try {
+        await HBJ.api(`/ai-predictions/${id}/${action}`, { method: 'PATCH' });
+        document.getElementById(`row-${id}`)?.remove();
+        showToast(action === 'approve' ? 'تم الاعتماد' : 'تم الرفض');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

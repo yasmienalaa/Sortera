@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل باحث جديد — بوابة الباحث الخارجي</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-icon">🔎</div>
+      <h1 class="auth-title">تسجيل باحث جديد</h1>
+      <p class="auth-subtitle">بوابة منفصلة تمامًا عن نظام الفريق الداخلي</p>
+
+      <div id="formError" class="form-error"></div>
+
+      <form id="registerForm">
+        <div class="field">
+          <label for="tenantSlug">معرّف الأرشيف</label>
+          <input type="text" id="tenantSlug" required placeholder="مثال: hbj-archive" style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <div class="field">
+          <label for="fullName">الاسم الكامل</label>
+          <input type="text" id="fullName" required style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <div class="field">
+          <label for="email">البريد الإلكتروني</label>
+          <input type="email" id="email" required style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <div class="field">
+          <label for="password">كلمة المرور</label>
+          <input type="password" id="password" required minlength="8" style="width:100%; padding:12px 14px; border:1px solid var(--color-border); border-radius:var(--radius-md);" />
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn"><span id="submitLabel">تسجيل</span></button>
+      </form>
+      <p style="margin-top:16px; font-size:13px;"><a href="/researcher-portal/login.html" style="color:var(--color-primary);">عندك حساب بالفعل؟ سجّلي دخول</a></p>
+    </div>
+  </div>
+
+  <script src="/researcher-portal/js/rp-api.js"></script>
+  <script>
+    const form = document.getElementById('registerForm');
+    const errorBox = document.getElementById('formError');
+    const submitBtn = document.getElementById('submitBtn');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBox.classList.remove('visible');
+      submitBtn.disabled = true;
+      try {
+        const result = await RP.api('/researcher-portal/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            tenantSlug: document.getElementById('tenantSlug').value.trim(),
+            fullName: document.getElementById('fullName').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            password: document.getElementById('password').value,
+          }),
+        });
+        RP.setToken(result.accessToken);
+        RP.setResearcher(result.researcher);
+        location.href = '/researcher-portal/browse.html';
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.add('visible');
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

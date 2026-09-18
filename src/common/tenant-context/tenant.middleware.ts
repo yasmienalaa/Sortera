@@ -35,6 +35,39 @@ const PUBLIC_PATHS = ['/auth/login', '/health', '/researcher-portal/register', '
 const PENDING_2FA_ALLOWED_PATHS = ['/auth/2fa/setup', '/auth/2fa/verify'];
 
 /**
+ * FIX (found via real end-to-end testing): use req.originalUrl, not
+ * req.path. NestJS/Express can mount this middleware such that req.path
+ * is resolved relative to the current sub-router — in practice it came
+ * back as just "/" for every request regardless of the real route, which
+ * silently 401'd every public path (login, health, researcher
+ * register/login) and broke the researcher-portal audience check
+ * entirely. req.originalUrl stays the full absolute path no matter how
+ * deep the routing is nested.
+ */
+function requestPath(req: Request): string {
+  return req.originalUrl.split('?')[0];
+}
+
+/**
+ * Phase 5 (frontend): plain static HTML/CSS/JS served from the same app
+ * (see main.ts's useStaticAssets). None of it carries secrets — the
+ * pages themselves just check localStorage for a token client-side and
+ * redirect to /login.html if missing — so gating the FILES behind this
+ * middleware would be pointless and would break the app on first load
+ * (no token exists yet to even reach /login.html). Every actual API
+ * call those pages make still goes through the checks below as normal.
+ */
+function isStaticAssetRequest(path: string): boolean {
+  return (
+    path === '/' ||
+    path.startsWith('/css/') ||
+    path.startsWith('/js/') ||
+    path.startsWith('/images/') ||
+    /\.(html|css|js|map|png|jpg|jpeg|svg|ico|webp|woff2?)$/.test(path)
+  );
+}
+
+/**
  * Runs before every guard/controller. This is the "middleware مركزي"
  * required by instruction #4 and by C4 in the spec: it is the ONE place
  * that resolves tenantId for a request, and every downstream Prisma query
@@ -58,12 +91,9 @@ export class TenantMiddleware implements NestMiddleware {
   ) {}
 
   async use(req: AuthedRequest, res: Response, next: NextFunction) {
-    // NestJS attaches route-bound middleware inside each controller's own
-    // Express sub-router, so req.path/req.url are relative to that
-    // controller's mount point (e.g. "/" instead of "/auth/login") — only
-    // req.originalUrl stays absolute regardless of that internal nesting.
-    const path = req.originalUrl.split('?')[0];
-    if (PUBLIC_PATHS.some((p) => path.startsWith(p))) {
+    const path = requestPath(req);
+
+    if (isStaticAssetRequest(path) || PUBLIC_PATHS.some((p) => path.startsWith(p))) {
       return next();
     }
 

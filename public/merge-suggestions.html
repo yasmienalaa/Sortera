@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>دمج السجلات المكررة — HBJ Archive</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <div id="sidebar-root"></div>
+    <main class="main">
+      <div class="page-header">
+        <h1 class="page-title">اقتراحات دمج السجلات المكررة</h1>
+      </div>
+      <p style="color:var(--color-text-muted); margin-top:-16px; margin-bottom:24px; font-size:14px;">
+        لما الـ AI يقترح شخصية جديدة تشبه سجل موجود بالفعل، بتظهر هنا للمراجعة بدل ما تتسجل تلقائيًا كمكررة (A7).
+      </p>
+
+      <div class="card table-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>السجل الأول</th>
+              <th>السجل الثاني</th>
+              <th>نسبة التشابه</th>
+              <th>تاريخ الاقتراح</th>
+              <th>إجراء</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+        <div id="emptyState" class="empty-state" style="display:none;">
+          <div class="avatar-lg">👥</div>
+          مفيش اقتراحات دمج معلّقة حاليًا
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/shell.js"></script>
+  <script>
+    if (HBJ.requireAuth()) {
+      renderShell('/merge-suggestions.html');
+      load();
+    }
+
+    async function load() {
+      try {
+        const items = await HBJ.api('/merge-suggestions/pending');
+        renderTable(items);
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById('tableBody');
+      const empty = document.getElementById('emptyState');
+      if (items.length === 0) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+      empty.style.display = 'none';
+
+      tbody.innerHTML = items.map((s) => `
+        <tr id="row-${s.id}">
+          <td><code style="font-size:12px;">${s.recordIdA.slice(0, 8)}…</code></td>
+          <td><code style="font-size:12px;">${s.recordIdB.slice(0, 8)}…</code></td>
+          <td><span class="badge ${s.similarityScore > 0.85 ? 'badge-danger' : 'badge-warning'}">${Math.round(s.similarityScore * 100)}%</span></td>
+          <td>${new Date(s.createdAt).toLocaleDateString('ar-EG')}</td>
+          <td style="display:flex; gap:8px;">
+            <button class="btn btn-primary" style="width:auto; padding:6px 14px;" onclick="decide('${s.id}','merge')">دمج</button>
+            <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" onclick="decide('${s.id}','reject')">مش نفس الشخص</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function decide(id, action) {
+      try {
+        await HBJ.api(`/merge-suggestions/${id}/${action}`, { method: 'PATCH' });
+        document.getElementById(`row-${id}`)?.remove();
+        showToast(action === 'merge' ? 'تم الدمج' : 'تم الرفض');
+      } catch (err) {
+        showToast(err.message, true);
+      }
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>

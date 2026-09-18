@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>عرض العنصر — بوابة الباحث الخارجي</title>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <div id="rp-nav-root"></div>
+  <main class="main" style="max-width:700px; margin:0 auto;">
+    <div id="content"></div>
+  </main>
+
+  <div id="toast" class="toast"><span id="toastText"></span></div>
+
+  <script src="/researcher-portal/js/rp-api.js"></script>
+  <script src="/researcher-portal/js/rp-shell.js"></script>
+  <script>
+    const TYPE_LABELS = { VIDEO: 'فيديو', IMAGE: 'صورة', DOCUMENT: 'مستند', AUDIO: 'صوتي' };
+    const id = new URLSearchParams(location.search).get('id');
+    let pollTimer;
+
+    if (RP.requireAuth()) {
+      renderRpNav('');
+      if (!id) { location.href = '/researcher-portal/browse.html'; }
+      else load();
+    }
+
+    async function load() {
+      const content = document.getElementById('content');
+      try {
+        const item = await RP.api(`/researcher-portal/content-items/${id}`);
+        const canWatermark = item.contentType === 'VIDEO' || item.contentType === 'IMAGE';
+
+        content.innerHTML = `
+          <div class="card">
+            <span class="badge badge-neutral">${TYPE_LABELS[item.contentType] || item.contentType}</span>
+            <h1 style="margin:12px 0 20px;">${escapeHtmlRp(item.title)}</h1>
+            ${canWatermark
+              ? `<button class="btn btn-primary" style="width:auto;" id="downloadBtn">تحميل بعلامة مائية</button>
+                 <div id="downloadStatus" style="margin-top:16px; font-size:14px;"></div>`
+              : `<p style="color:var(--color-text-muted);">التحميل المباشر للمستندات مش متاح في هذا الإصدار — تواصلي مع فريق الأرشيف.</p>`}
+          </div>
+        `;
+
+        if (canWatermark) {
+          document.getElementById('downloadBtn').addEventListener('click', startDownload);
+        }
+      } catch (err) {
+        content.innerHTML = `<div class="card"><p style="color:var(--color-danger-text);">${escapeHtmlRp(err.message)}</p></div>`;
+      }
+    }
+
+    async function startDownload() {
+      const statusBox = document.getElementById('downloadStatus');
+      const btn = document.getElementById('downloadBtn');
+      btn.disabled = true;
+      statusBox.innerHTML = '<span class="spinner" style="border-top-color:var(--color-primary); border-color:var(--color-border);"></span> جاري تجهيز الملف بعلامة مائية باسمك وتاريخ اليوم...';
+
+      try {
+        const { watermarkJobId } = await RP.api(`/researcher-portal/content-items/${id}/download`, { method: 'POST' });
+        pollWatermark(watermarkJobId);
+      } catch (err) {
+        statusBox.textContent = err.message;
+        btn.disabled = false;
+      }
+    }
+
+    function pollWatermark(jobId) {
+      pollTimer = setInterval(async () => {
+        try {
+          const result = await RP.api(`/researcher-portal/watermark-jobs/${jobId}`);
+          const statusBox = document.getElementById('downloadStatus');
+          if (result.status === 'DONE') {
+            clearInterval(pollTimer);
+            statusBox.innerHTML = `<a href="${result.downloadUrl}" class="btn btn-primary" style="width:auto; display:inline-flex;" target="_blank">تحميل الملف الآن (صالح 5 دقائق)</a>`;
+          } else if (result.status === 'FAILED') {
+            clearInterval(pollTimer);
+            statusBox.textContent = `فشلت المعالجة: ${result.error || 'خطأ غير معروف'}`;
+          }
+          // PENDING/PROCESSING — keep polling silently.
+        } catch (err) {
+          clearInterval(pollTimer);
+          showToast(err.message, true);
+        }
+      }, 2000);
+    }
+
+    function showToast(text, isError) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastText').textContent = text;
+      toast.classList.toggle('error', !!isError);
+      toast.classList.add('visible');
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  </script>
+</body>
+</html>
