@@ -385,6 +385,11 @@ model NavSection {
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId])
+  // Without this, seed.ts's `skipDuplicates: true` has no unique key to
+  // check against, so every re-run of `prisma:seed` (e.g. after a Railway
+  // redeploy) silently inserts a fresh copy of every section — the exact
+  // "sidebar section repeated 3 times" bug this fixes.
+  @@unique([tenantId, sectionName])
   @@map("nav_sections")
 }
 
