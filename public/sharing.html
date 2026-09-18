@@ -31,14 +31,14 @@
 
       <div class="grid" style="grid-template-columns:1fr 1fr;">
         <div class="card table-card">
-          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">شاركناه إحنا</h2></div>
+          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">مشاركات صادرة</h2></div>
           <table class="data-table">
             <thead><tr><th>العنصر</th><th>مع عميل</th><th>الصلاحية</th><th></th></tr></thead>
             <tbody id="outgoingBody"></tbody>
           </table>
         </div>
         <div class="card table-card">
-          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">اتشارك معانا</h2></div>
+          <div class="table-toolbar"><h2 class="card-title" style="margin:0;">مشاركات واردة</h2></div>
           <table class="data-table">
             <thead><tr><th>معرّف العنصر</th><th>الصلاحية</th></tr></thead>
             <tbody id="incomingBody"></tbody>
@@ -88,7 +88,7 @@
         document.getElementById('incomingBody').innerHTML = incoming.map((s) => `
           <tr><td><code style="font-size:11px;">${s.contentItemId.slice(0,8)}…</code></td>
               <td><span class="badge badge-neutral">${s.permissionLevel === 'VIEW' ? 'عرض فقط' : 'عرض وتعديل'}</span></td></tr>
-        `).join('') || '<tr><td colspan="2" style="color:var(--color-text-muted);">لا يوجد محتوى مشارك معانا</td></tr>';
+        `).join('') || '<tr><td colspan="2" style="color:var(--color-text-muted);">لا يوجد محتوى مشارك واردًا</td></tr>';
       } catch (err) { showToast(err.message, true); }
     }
 

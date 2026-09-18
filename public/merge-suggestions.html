@@ -14,7 +14,7 @@
         <h1 class="page-title">اقتراحات دمج السجلات المكررة</h1>
       </div>
       <p style="color:var(--color-text-muted); margin-top:-16px; margin-bottom:24px; font-size:14px;">
-        لما الـ AI يقترح شخصية جديدة تشبه سجل موجود بالفعل، بتظهر هنا للمراجعة بدل ما تتسجل تلقائيًا كمكررة (A7).
+        عندما يقترح الذكاء الاصطناعي شخصية جديدة تشبه سجلًا موجودًا بالفعل، تظهر هنا للمراجعة بدلاً من تسجيلها تلقائيًا كتكرار.
       </p>
 
       <div class="card table-card">
@@ -71,7 +71,7 @@
           <td>${new Date(s.createdAt).toLocaleDateString('ar-EG')}</td>
           <td style="display:flex; gap:8px;">
             <button class="btn btn-primary" style="width:auto; padding:6px 14px;" onclick="decide('${s.id}','merge')">دمج</button>
-            <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" onclick="decide('${s.id}','reject')">مش نفس الشخص</button>
+            <button class="btn btn-secondary" style="width:auto; padding:6px 14px;" onclick="decide('${s.id}','reject')">ليس نفس الشخص</button>
           </td>
         </tr>
       `).join('');

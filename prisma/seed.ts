@@ -91,7 +91,7 @@ async function main() {
   // configuration, not a frontend if/else on tenant type.
   await prisma.navSection.createMany({
     data: [
-      { tenantId: hbj.id, sectionName: 'المحتوى', items: ['video_list', 'photo_list', 'event_clips', 'event_photos', 'video_productions'], sortOrder: 1 },
+      { tenantId: hbj.id, sectionName: 'المحتوى', items: ['video_list', 'photo_list', 'document_list', 'event_clips', 'event_photos', 'video_productions'], sortOrder: 1 },
       { tenantId: hbj.id, sectionName: 'الذكاء الاصطناعي', items: ['ai_brands', 'ai_clip_characters', 'ai_clip_text'], sortOrder: 2 },
       { tenantId: hbj.id, sectionName: 'الأشخاص والعلامات', items: ['characters', 'brands'], sortOrder: 3 },
       { tenantId: hbj.id, sectionName: 'الإدارة', items: ['researcher_list', 'event_type', 'settings'], sortOrder: 4 },
